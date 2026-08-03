@@ -67,7 +67,19 @@ export async function getResearcherProfile(): Promise<ResearcherProfile> {
     database.transaction("metadata", "readonly").objectStore("metadata").get("researcher-profile")
   ) as { key: string; value: ResearcherProfile } | undefined;
   database.close();
-  if (record?.value) return record.value;
+  if (record?.value) {
+    if (record.value.dominantHand === "unknown" && record.value.signingHand === "unknown") {
+      const migratedProfile: ResearcherProfile = {
+        ...record.value,
+        dominantHand: "right",
+        signingHand: "right",
+        updatedAt: new Date().toISOString()
+      };
+      await saveResearcherProfile(migratedProfile);
+      return migratedProfile;
+    }
+    return record.value;
+  }
   const profile = createDefaultResearcherProfile();
   await saveResearcherProfile(profile);
   return profile;

@@ -69,11 +69,11 @@ describe("learned profiles", () => {
 });
 
 describe("personal research profile", () => {
-  it("starts local, private, and deliberately unclassified for handedness", () => {
+  it("starts local, private, and uses the researcher's stated right hand", () => {
     const profile = createDefaultResearcherProfile(new Date("2026-08-03T12:00:00.000Z"));
     expect(profile.id).toBe("local-primary");
     expect(profile.scope).toBe("personal-local");
-    expect(profile.dominantHand).toBe("unknown");
-    expect(profile.signingHand).toBe("unknown");
+    expect(profile.dominantHand).toBe("right");
+    expect(profile.signingHand).toBe("right");
   });
 });

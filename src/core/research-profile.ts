@@ -9,8 +9,8 @@ export function createDefaultResearcherProfile(now = new Date()): ResearcherProf
     id: PRIMARY_RESEARCHER_ID,
     scope: "personal-local",
     displayName: "Primary researcher",
-    dominantHand: "unknown",
-    signingHand: "unknown",
+    dominantHand: "right",
+    signingHand: "right",
     createdAt: timestamp,
     updatedAt: timestamp
   };

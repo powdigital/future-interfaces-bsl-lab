@@ -208,7 +208,7 @@ async function finishRecording() {
     researcherId: PRIMARY_RESEARCHER_ID,
     sessionId: researchSessionId,
     appVersion: APP_VERSION,
-    handedness: "unknown"
+    handedness: "right"
   };
   const exampleId = await addExample(example);
   selectedExamples.push({ ...example, id: exampleId });

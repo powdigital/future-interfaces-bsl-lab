@@ -6,6 +6,8 @@ This log records choices that should remain visible as the BSL Lab grows.
 
 The initial product is a local personal research lab with one primary researcher. It will perfect numbers and individual letters before introducing shared contributors or a hosted database.
 
+The primary researcher normally signs one-handed gestures with the right hand. New personal examples therefore record right-handed provenance by default. Handedness remains a per-example field so deliberate left-handed recordings can be added later.
+
 Consequences:
 
 - camera inference remains local;
