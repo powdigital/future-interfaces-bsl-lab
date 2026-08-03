@@ -45,6 +45,17 @@ describe("seeded BSL number recognition", () => {
   });
 });
 
+describe("guided number protocols", () => {
+  it("provides five correct and three sign-specific incorrect steps for every number", () => {
+    SIGN_BANK.forEach((sign) => {
+      expect(sign.trainingProtocol.correct).toHaveLength(5);
+      expect(sign.trainingProtocol.incorrect).toHaveLength(3);
+      const ids = [...sign.trainingProtocol.correct, ...sign.trainingProtocol.incorrect].map((prompt) => prompt.id);
+      expect(new Set(ids).size).toBe(8);
+    });
+  });
+});
+
 describe("learned profiles", () => {
   it("keeps learned evidence separate and promotes sufficient evidence", () => {
     const examples: TrainingExample[] = [

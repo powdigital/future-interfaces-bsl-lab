@@ -102,11 +102,24 @@ h1 span { color: rgba(255, 122, 0, 0.55); font-weight: 400; }
 .digit-state.folded { color: #777; }
 .digit-state.ambiguous { color: #ff7a00; }
 .calibration-controls { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 15px; }
-.calibration-controls button, .database-controls button, .import-training { border: 1px solid var(--line); background: #111; color: #aaa; padding: 9px 12px; text-transform: uppercase; letter-spacing: .09em; font-size: 9px; cursor: pointer; }
+.calibration-controls button, .database-controls button, .import-training, .guided-actions button { border: 1px solid var(--line); background: #111; color: #aaa; padding: 9px 12px; text-transform: uppercase; letter-spacing: .09em; font-size: 9px; cursor: pointer; }
 .calibration-controls button:hover:not(:disabled) { border-color: #ff7a00; color: #ff7a00; }
 .calibration-controls button:disabled { opacity: .35; cursor: wait; }
 .sign-selector { display: flex; align-items: center; gap: 7px; color: #777; text-transform: uppercase; letter-spacing: .09em; font-size: 9px; }
 .sign-selector select { border: 1px solid var(--line); border-radius: 0; background: #111; color: var(--ink); padding: 8px 28px 8px 9px; font: inherit; }
+.primary-training-button { border-color: rgba(207,255,56,.55) !important; color: var(--signal) !important; }
+.guided-training { margin-top: 13px; padding: 15px; border: 1px solid rgba(207,255,56,.3); background: rgba(207,255,56,.035); }
+.guided-training[hidden] { display: none; }
+.guided-meta { display: flex; justify-content: space-between; color: var(--signal); text-transform: uppercase; letter-spacing: .11em; font-size: 8px; }
+.guided-step-progress { height: 2px; margin: 9px 0 14px; background: #222; }
+.guided-step-progress span { display: block; width: 12.5%; height: 100%; background: var(--signal); transition: width .25s ease; }
+.guided-training h3 { margin: 0 0 6px; color: var(--ink); font-size: 15px; font-weight: 400; letter-spacing: .02em; }
+.guided-training p { margin: 0; color: #888; font-size: 11px; line-height: 1.5; }
+.guided-actions { display: flex; gap: 8px; margin-top: 13px; }
+.guided-actions button:first-child { border-color: var(--signal); color: var(--signal); }
+.guided-actions button:disabled { opacity: .35; cursor: wait; }
+.manual-calibration { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 10px; }
+.manual-calibration summary { color: #555; text-transform: uppercase; letter-spacing: .1em; font-size: 8px; cursor: pointer; }
 .recording-status, .calibration-report { margin-top: 12px; color: #777; font-size: 10px; line-height: 1.5; }
 .recording-status.is-recording { color: #ff7a00; }
 .recording-progress { height: 2px; margin-top: 8px; overflow: hidden; background: #222; }

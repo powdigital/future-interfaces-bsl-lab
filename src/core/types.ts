@@ -41,6 +41,16 @@ export interface SignDefinition {
   status: "provisional" | "evidence-seeded" | "established";
   minimumScore: number;
   minimumMargin: number;
+  trainingProtocol: {
+    correct: TrainingPrompt[];
+    incorrect: TrainingPrompt[];
+  };
+}
+
+export interface TrainingPrompt {
+  id: string;
+  title: string;
+  instruction: string;
 }
 
 export interface TrainingExample {
@@ -57,6 +67,7 @@ export interface TrainingExample {
   sessionId?: string;
   appVersion?: string;
   handedness?: "left" | "right" | "unknown";
+  protocolStepId?: string;
 }
 
 export interface ResearcherProfile {

@@ -1,6 +1,42 @@
-import type { DigitState, SignDefinition, SignRule } from "./types.ts";
+import type { DigitState, SignDefinition, SignRule, TrainingPrompt } from "./types.ts";
 
 export const SIGN_BANK_VERSION = 1;
+
+const correctPrompts: TrainingPrompt[] = [
+  { id: "natural", title: "Natural position", instruction: "Make the sign naturally with your right hand facing the camera." },
+  { id: "near", title: "Slightly closer", instruction: "Make the same sign a little closer to the camera." },
+  { id: "far", title: "Slightly farther", instruction: "Move a little farther back while keeping the sign clear." },
+  { id: "left-angle", title: "Turn slightly left", instruction: "Rotate your wrist slightly left without changing the sign." },
+  { id: "right-angle", title: "Turn slightly right", instruction: "Rotate your wrist slightly right without changing the sign." }
+];
+
+const incorrectPrompts: Record<number, TrainingPrompt[]> = {
+  1: [
+    { id: "grab", title: "Closed grab", instruction: "Make a closed grabbing or claw-like pose that must not count as 1." },
+    { id: "thumb-out", title: "Thumb extended", instruction: "Extend the index finger and thumb together. This must not count as 1." },
+    { id: "bent-index", title: "Bent index", instruction: "Keep the other fingers closed but bend the index halfway." }
+  ],
+  2: [
+    { id: "number-1", title: "Neighboring number 1", instruction: "Sign number 1 clearly. It must not count as 2." },
+    { id: "number-3", title: "Neighboring number 3", instruction: "Sign number 3 clearly. It must not count as 2." },
+    { id: "bent-pair", title: "Bent finger pair", instruction: "Raise index and middle fingers but bend them halfway." }
+  ],
+  3: [
+    { id: "number-2", title: "Neighboring number 2", instruction: "Sign number 2 clearly. It must not count as 3." },
+    { id: "number-4", title: "Neighboring number 4", instruction: "Sign number 4 clearly. It must not count as 3." },
+    { id: "thumb-out", title: "Three plus thumb", instruction: "Raise the first three fingers and extend the thumb." }
+  ],
+  4: [
+    { id: "number-3", title: "Neighboring number 3", instruction: "Sign number 3 clearly. It must not count as 4." },
+    { id: "number-5", title: "Neighboring number 5", instruction: "Open the thumb to sign number 5 clearly." },
+    { id: "partial-pinky", title: "Partly folded pinky", instruction: "Raise four fingers but leave the pinky partly folded." }
+  ],
+  5: [
+    { id: "number-4", title: "Neighboring number 4", instruction: "Fold the thumb across to sign number 4 clearly." },
+    { id: "bent-thumb", title: "Partly open thumb", instruction: "Open all fingers but keep the thumb only halfway extended." },
+    { id: "relaxed-open", title: "Relaxed open hand", instruction: "Show a relaxed, partly curled open hand rather than a clear 5." }
+  ]
+};
 
 function number(value: number, statePattern: DigitState[], baseRules: SignRule[] = []): SignDefinition {
   return {
@@ -15,7 +51,11 @@ function number(value: number, statePattern: DigitState[], baseRules: SignRule[]
     baseRules,
     status: value === 1 ? "evidence-seeded" : "provisional",
     minimumScore: value === 1 ? 0.76 : 0.82,
-    minimumMargin: 0.06
+    minimumMargin: 0.06,
+    trainingProtocol: {
+      correct: correctPrompts,
+      incorrect: incorrectPrompts[value]
+    }
   };
 }
 

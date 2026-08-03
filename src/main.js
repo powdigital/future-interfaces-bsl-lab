@@ -42,6 +42,15 @@ const clearCalibrationButton = document.querySelector("#clear-calibration");
 const calibrationSignSelect = document.querySelector("#calibration-sign");
 const exportTrainingButton = document.querySelector("#export-training");
 const importTrainingInput = document.querySelector("#import-training");
+const startGuidedTrainingButton = document.querySelector("#start-guided-training");
+const guidedTrainingPanel = document.querySelector("#guided-training");
+const guidedStepCopy = document.querySelector("#guided-step");
+const guidedKindCopy = document.querySelector("#guided-kind");
+const guidedStepProgressBar = document.querySelector("#guided-step-progress-bar");
+const guidedTitle = document.querySelector("#guided-title");
+const guidedInstruction = document.querySelector("#guided-instruction");
+const guidedCaptureButton = document.querySelector("#guided-capture");
+const guidedStopButton = document.querySelector("#guided-stop");
 
 const CONNECTIONS = [
   [0,1],[1,2],[2,3],[3,4], [0,5],[5,6],[6,7],[7,8],
@@ -63,6 +72,7 @@ let chainCount = 0;
 let gestureHistory = [];
 let recordingSession = null;
 let selectedExamples = [];
+let guidedSession = null;
 const learnedProfiles = new Map();
 const researchSessionId = createSessionId();
 
@@ -212,7 +222,8 @@ async function finishRecording() {
     researcherId: PRIMARY_RESEARCHER_ID,
     sessionId: researchSessionId,
     appVersion: APP_VERSION,
-    handedness: "right"
+    handedness: "right",
+    protocolStepId: completedSession.protocolStepId
   };
   const exampleId = await addExample(example);
   selectedExamples.push({ ...example, id: exampleId });
@@ -225,9 +236,19 @@ async function finishRecording() {
   recordingStatus.textContent = `${sign.label} ${kindLabel} example saved: ${completedSession.samples.length} frames.`;
   recordingStatus.classList.remove("is-recording");
   recordingProgressBar.style.width = "100%";
-  document.querySelectorAll("[data-record]").forEach((button) => { button.disabled = false; });
-  calibrationSignSelect.disabled = false;
   renderCalibrationReport();
+  if (completedSession.guided && guidedSession) {
+    guidedSession.index += 1;
+    if (guidedSession.index >= guidedSession.steps.length) {
+      finishGuidedTraining();
+    } else {
+      renderGuidedStep();
+      guidedCaptureButton.disabled = false;
+    }
+  } else {
+    document.querySelectorAll("[data-record]").forEach((button) => { button.disabled = false; });
+    calibrationSignSelect.disabled = false;
+  }
 }
 
 function updateDiagnostics(landmarks, now) {
@@ -254,13 +275,22 @@ function updateDiagnostics(landmarks, now) {
   }
 }
 
-function startRecording(kind) {
+function startRecording(kind, guided = false) {
   if (!stream?.active) {
     recordingStatus.textContent = "Start the camera before recording a pose.";
     return;
   }
   const sign = getSign(calibrationSignSelect.value);
-  recordingSession = { signId: sign.id, kind, endsAt: performance.now() + 2000, samples: [], landmarkFrames: [] };
+  const guidedStep = guided && guidedSession ? guidedSession.steps[guidedSession.index] : null;
+  recordingSession = {
+    signId: sign.id,
+    kind,
+    endsAt: performance.now() + 2000,
+    samples: [],
+    landmarkFrames: [],
+    guided,
+    protocolStepId: guidedStep?.prompt.id
+  };
   recordingStatus.classList.add("is-recording");
   recordingStatus.textContent = `Recording ${sign.label} ${kind === "positive" ? "correct" : "incorrect"}: 2.0s`;
   recordingProgressBar.style.width = "0%";
@@ -268,6 +298,68 @@ function startRecording(kind) {
   document.querySelectorAll("#gesture-list li[data-gesture]").forEach((item) => item.classList.remove("is-active"));
   document.querySelectorAll("[data-record]").forEach((button) => { button.disabled = true; });
   calibrationSignSelect.disabled = true;
+}
+
+function guidedStepsFor(sign) {
+  return [
+    ...sign.trainingProtocol.correct.map((prompt) => ({ kind: "positive", prompt })),
+    ...sign.trainingProtocol.incorrect.map((prompt) => ({ kind: "negative", prompt }))
+  ];
+}
+
+function renderGuidedStep() {
+  if (!guidedSession) return;
+  const step = guidedSession.steps[guidedSession.index];
+  const position = guidedSession.index + 1;
+  guidedStepCopy.textContent = `Step ${position} of ${guidedSession.steps.length}`;
+  guidedKindCopy.textContent = step.kind === "positive" ? "Correct example" : "Incorrect example";
+  guidedStepProgressBar.style.width = `${position / guidedSession.steps.length * 100}%`;
+  guidedTitle.textContent = step.prompt.title;
+  guidedInstruction.textContent = step.prompt.instruction;
+}
+
+function startGuidedTraining() {
+  if (!stream?.active) {
+    recordingStatus.textContent = "Start the camera before beginning guided training.";
+    return;
+  }
+  const sign = getSign(calibrationSignSelect.value);
+  guidedSession = { signId: sign.id, steps: guidedStepsFor(sign), index: 0 };
+  guidedTrainingPanel.hidden = false;
+  guidedCaptureButton.disabled = false;
+  startGuidedTrainingButton.disabled = true;
+  calibrationSignSelect.disabled = true;
+  document.querySelectorAll("[data-record]").forEach((button) => { button.disabled = true; });
+  recordingStatus.textContent = `${sign.label} guided session ready. Complete all eight steps.`;
+  renderGuidedStep();
+}
+
+function finishGuidedTraining() {
+  const sign = guidedSession ? getSign(guidedSession.signId) : null;
+  guidedSession = null;
+  recordingSession = null;
+  guidedStepCopy.textContent = "Session complete";
+  guidedKindCopy.textContent = "8 examples saved";
+  guidedStepProgressBar.style.width = "100%";
+  guidedTitle.textContent = `${sign?.label || "Sign"} training complete`;
+  guidedInstruction.textContent = "The learned profile has been rebuilt from the full guided session.";
+  guidedCaptureButton.disabled = true;
+  startGuidedTrainingButton.disabled = false;
+  calibrationSignSelect.disabled = false;
+  document.querySelectorAll("[data-record]").forEach((button) => { button.disabled = false; });
+  recordingStatus.textContent = `${sign?.label || "Sign"} guided training complete.`;
+}
+
+function stopGuidedTraining() {
+  guidedSession = null;
+  recordingSession = null;
+  guidedTrainingPanel.hidden = true;
+  guidedCaptureButton.disabled = false;
+  startGuidedTrainingButton.disabled = false;
+  calibrationSignSelect.disabled = false;
+  document.querySelectorAll("[data-record]").forEach((button) => { button.disabled = false; });
+  recordingStatus.classList.remove("is-recording");
+  recordingStatus.textContent = "Guided session stopped. Saved steps remain in the evidence database.";
 }
 
 async function loadSelectedSignTraining() {
@@ -549,6 +641,13 @@ diagnosticsClose.addEventListener("click", () => {
 document.querySelectorAll("[data-record]").forEach((button) => {
   button.addEventListener("click", () => startRecording(button.dataset.record));
 });
+startGuidedTrainingButton.addEventListener("click", startGuidedTraining);
+guidedCaptureButton.addEventListener("click", () => {
+  if (!guidedSession) return;
+  guidedCaptureButton.disabled = true;
+  startRecording(guidedSession.steps[guidedSession.index].kind, true);
+});
+guidedStopButton.addEventListener("click", stopGuidedTraining);
 clearCalibrationButton.addEventListener("click", async () => {
   recordingSession = null;
   await clearSignTraining(calibrationSignSelect.value);

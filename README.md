@@ -29,3 +29,5 @@ npm run build
 Training data remains local to the browser until cloud synchronization is deliberately introduced. Exported JSON is the portable backup and review format.
 
 The evidence policy stores normalized hand landmarks and derived measurements only. Raw webcam video, audio, and still images are not retained.
+
+Guided training is the primary evidence workflow. Choose a number and complete five prompted correct variations followed by three sign-specific incorrect examples. Advanced manual calibration remains available for unusual failures found during later testing.

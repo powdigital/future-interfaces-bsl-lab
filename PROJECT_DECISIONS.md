@@ -46,3 +46,9 @@ Consequences:
 - Add automated tests for each accepted sign and known confusion.
 - Version database exports and accept older formats through explicit migrations.
 - Avoid introducing cloud services until synchronization, collaboration, or review requires them.
+
+## 2026-08-03: Guided training is primary
+
+Each number begins with an eight-step guided session containing five correct variations and three sign-specific incorrect examples. Correct variations cover natural distance and modest wrist rotation. Incorrect examples target neighboring numbers and known ambiguous hand poses.
+
+Manual positive and negative capture remains available as an advanced tool for failures discovered outside the guided session.
