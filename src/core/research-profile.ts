@@ -1,7 +1,7 @@
 import type { ResearcherProfile } from "./types.ts";
 
 export const PRIMARY_RESEARCHER_ID = "local-primary";
-export const APP_VERSION = "0.4.0";
+export const APP_VERSION = "0.4.1";
 
 export function createDefaultResearcherProfile(now = new Date()): ResearcherProfile {
   const timestamp = now.toISOString();

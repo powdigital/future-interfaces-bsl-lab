@@ -26,6 +26,7 @@ export interface SignRule {
   negativeMedian?: number | null;
   negativeMin?: number | null;
   negativeMax?: number | null;
+  separation?: number;
 }
 
 export interface SignDefinition {
@@ -82,7 +83,7 @@ export interface ResearcherProfile {
 
 export interface LearnedProfile {
   signId: string;
-  schemaVersion: 1;
+  schemaVersion: 2;
   updatedAt: string;
   evidence: {
     positiveClips: number;

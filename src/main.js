@@ -43,6 +43,7 @@ const calibrationSignSelect = document.querySelector("#calibration-sign");
 const exportTrainingButton = document.querySelector("#export-training");
 const importTrainingInput = document.querySelector("#import-training");
 const startGuidedTrainingButton = document.querySelector("#start-guided-training");
+const captureFalseMatchButton = document.querySelector("#capture-false-match");
 const guidedTrainingPanel = document.querySelector("#guided-training");
 const guidedStepCopy = document.querySelector("#guided-step");
 const guidedKindCopy = document.querySelector("#guided-kind");
@@ -247,6 +248,7 @@ async function finishRecording() {
     }
   } else {
     document.querySelectorAll("[data-record]").forEach((button) => { button.disabled = false; });
+    captureFalseMatchButton.disabled = false;
     calibrationSignSelect.disabled = false;
   }
 }
@@ -297,6 +299,7 @@ function startRecording(kind, guided = false) {
   gestureHistory = [];
   document.querySelectorAll("#gesture-list li[data-gesture]").forEach((item) => item.classList.remove("is-active"));
   document.querySelectorAll("[data-record]").forEach((button) => { button.disabled = true; });
+  captureFalseMatchButton.disabled = true;
   calibrationSignSelect.disabled = true;
 }
 
@@ -330,6 +333,7 @@ function startGuidedTraining() {
   startGuidedTrainingButton.disabled = true;
   calibrationSignSelect.disabled = true;
   document.querySelectorAll("[data-record]").forEach((button) => { button.disabled = true; });
+  captureFalseMatchButton.disabled = true;
   recordingStatus.textContent = `${sign.label} guided session ready. Complete all eight steps.`;
   renderGuidedStep();
 }
@@ -347,6 +351,7 @@ function finishGuidedTraining() {
   startGuidedTrainingButton.disabled = false;
   calibrationSignSelect.disabled = false;
   document.querySelectorAll("[data-record]").forEach((button) => { button.disabled = false; });
+  captureFalseMatchButton.disabled = false;
   recordingStatus.textContent = `${sign?.label || "Sign"} guided training complete.`;
 }
 
@@ -358,6 +363,7 @@ function stopGuidedTraining() {
   startGuidedTrainingButton.disabled = false;
   calibrationSignSelect.disabled = false;
   document.querySelectorAll("[data-record]").forEach((button) => { button.disabled = false; });
+  captureFalseMatchButton.disabled = false;
   recordingStatus.classList.remove("is-recording");
   recordingStatus.textContent = "Guided session stopped. Saved steps remain in the evidence database.";
 }
@@ -365,6 +371,18 @@ function stopGuidedTraining() {
 async function loadSelectedSignTraining() {
   selectedExamples = await getExamples(calibrationSignSelect.value);
   renderCalibrationReport();
+}
+
+async function rebuildStoredProfiles() {
+  for (const sign of SIGN_BANK) {
+    const examples = await getExamples(sign.id);
+    if (!examples.length) continue;
+    const profile = buildLearnedProfile(sign.id, examples);
+    if (profile) {
+      await saveProfile(profile);
+      learnedProfiles.set(sign.id, profile);
+    }
+  }
 }
 
 function playPing() {
@@ -642,6 +660,7 @@ document.querySelectorAll("[data-record]").forEach((button) => {
   button.addEventListener("click", () => startRecording(button.dataset.record));
 });
 startGuidedTrainingButton.addEventListener("click", startGuidedTraining);
+captureFalseMatchButton.addEventListener("click", () => startRecording("negative"));
 guidedCaptureButton.addEventListener("click", () => {
   if (!guidedSession) return;
   guidedCaptureButton.disabled = true;
@@ -704,6 +723,7 @@ async function initializeTrainingDatabase() {
   calibrationSignSelect.innerHTML = SIGN_BANK.map((sign) => `<option value="${sign.id}">${sign.label}</option>`).join("");
   try {
     (await getAllProfiles()).forEach((profile) => learnedProfiles.set(profile.signId, profile));
+    await rebuildStoredProfiles();
     await loadSelectedSignTraining();
   } catch (error) {
     console.error(error);

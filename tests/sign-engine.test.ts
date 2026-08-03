@@ -21,6 +21,14 @@ const confusingGrab: HandMetrics = [
   { state: "folded", angle1: 123, angle2: 88, straightness: 0.55, reach: 0.93 }
 ];
 
+const thumbOutOne: HandMetrics = [
+  { state: "extended", angle1: 168, angle2: 174, straightness: 0.98, reach: 0.48 },
+  { state: "extended", angle1: 176, angle2: 178, straightness: 1, reach: 1.32 },
+  { state: "folded", angle1: 32, angle2: 163, straightness: 0.23, reach: 0.75 },
+  { state: "folded", angle1: 27, angle2: 168, straightness: 0.21, reach: 0.68 },
+  { state: "folded", angle1: 31, angle2: 168, straightness: 0.23, reach: 0.7 }
+];
+
 const openHand: HandMetrics = [
   { state: "extended", angle1: 168, angle2: 174, straightness: 0.97, reach: 0.38 },
   { state: "extended", angle1: 176, angle2: 178, straightness: 0.99, reach: 1.32 },
@@ -83,6 +91,33 @@ describe("learned profiles", () => {
     expect(profile?.rules.length).toBeGreaterThan(0);
     expect(profile?.rules.every((rule) => rule.foundation === false)).toBe(true);
     expect(profile?.rules.some((rule) => rule.negativeMedian !== null)).toBe(true);
+  });
+
+  it("lets trained thumb-out negatives veto the seeded Number 1 rule", () => {
+    const examples: TrainingExample[] = [
+      ...Array.from({ length: 5 }, (_, index) => ({
+        signId: "bsl-number-1",
+        kind: "positive" as const,
+        recordedAt: `2026-08-03T13:00:0${index}.000Z`,
+        frames: [bslOne],
+        evidenceFormat: "hand-landmarks-and-metrics-v1" as const,
+        containsVideo: false as const,
+        containsAudio: false as const
+      })),
+      ...Array.from({ length: 3 }, (_, index) => ({
+        signId: "bsl-number-1",
+        kind: "negative" as const,
+        recordedAt: `2026-08-03T13:01:0${index}.000Z`,
+        frames: [thumbOutOne],
+        evidenceFormat: "hand-landmarks-and-metrics-v1" as const,
+        containsVideo: false as const,
+        containsAudio: false as const
+      }))
+    ];
+    const profile = buildLearnedProfile("bsl-number-1", examples);
+    const profiles = new Map(profile ? [[profile.signId, profile]] : []);
+    expect(recognizeSign(SIGN_BANK, bslOne, profiles).match?.sign.id).toBe("bsl-number-1");
+    expect(recognizeSign(SIGN_BANK, thumbOutOne, profiles).match).toBeNull();
   });
 });
 

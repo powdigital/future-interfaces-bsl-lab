@@ -52,3 +52,5 @@ Consequences:
 Each number begins with an eight-step guided session containing five correct variations and three sign-specific incorrect examples. Correct variations cover natural distance and modest wrist rotation. Incorrect examples target neighboring numbers and known ambiguous hand poses.
 
 Manual positive and negative capture remains available as an advanced tool for failures discovered outside the guided session.
+
+The primary calibration panel also exposes **Capture false match**. When an incorrect pose is recognized as the selected sign, the researcher can hold that pose and add it directly to the negative evidence set.

@@ -41,7 +41,7 @@ export function buildLearnedProfile(signId: string, examples: TrainingExample[])
   const negativeFrames = negatives.flatMap((example) => example.frames).map(flattenMetrics);
   if (!positiveFrames.length) return null;
 
-  const rules: SignRule[] = Object.keys(positiveFrames[0]).map((feature) => {
+  const candidateRules: SignRule[] = Object.keys(positiveFrames[0]).map((feature) => {
     const positiveValues = positiveFrames.map((frame) => frame[feature]).filter(Number.isFinite);
     const negativeValues = negativeFrames.map((frame) => frame[feature]).filter(Number.isFinite);
     const low = percentile(positiveValues, 0.05);
@@ -61,14 +61,21 @@ export function buildLearnedProfile(signId: string, examples: TrainingExample[])
       negativeMedian,
       negativeMin: negativeValues.length ? percentile(negativeValues, 0.05) : null,
       negativeMax: negativeValues.length ? percentile(negativeValues, 0.95) : null,
+      separation,
       weight: clamp(0.5 + separation * 1.4 + stability, 0.5, 5),
       foundation: false
     };
-  }).sort((a, b) => b.weight - a.weight).slice(0, 12);
+  });
+  const discriminatingRules = negativeFrames.length
+    ? candidateRules.filter((rule) => (rule.separation || 0) >= 0.75)
+    : candidateRules;
+  const rules = (discriminatingRules.length ? discriminatingRules : candidateRules)
+    .sort((a, b) => b.weight - a.weight)
+    .slice(0, 12);
 
   return {
     signId,
-    schemaVersion: 1,
+    schemaVersion: 2,
     updatedAt: new Date().toISOString(),
     evidence: {
       positiveClips: positives.length,
@@ -122,7 +129,9 @@ export function scoreSign(sign: SignDefinition, metrics: HandMetrics, profile?: 
     .filter((rule) => rule.negativeMin !== null && rule.negativeMax !== null)
     .map((rule) => ({ ...rule, min: rule.negativeMin as number, max: rule.negativeMax as number }));
   const negativeScore = negativeRules.length ? rulesScore(features, negativeRules) : null;
-  const learnedScore = (positiveScore || 0) * (1 - 0.65 * (negativeScore || 0));
+  const learnedScore = negativeScore === null
+    ? positiveScore || 0
+    : clamp(0.5 + ((positiveScore || 0) - negativeScore) * 0.5, 0, 1);
   const evidenceWeight = clamp(
     profile.evidence.positiveClips / 5 * 0.5 + profile.evidence.negativeClips / 3 * 0.3,
     0.2,
