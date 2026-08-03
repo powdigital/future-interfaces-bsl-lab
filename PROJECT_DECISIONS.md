@@ -27,6 +27,18 @@ Consequences:
 - A shared rule should eventually be tested on held-out examples and additional signers.
 - Failed recognition is treated as useful evidence and should be capturable from the interface.
 
+## 2026-08-03: Landmarks and measurements only
+
+The personal lab stores MediaPipe's 21 normalized hand landmarks and the derived finger measurements for each calibration frame. It does not retain webcam video, audio, or still images.
+
+Consequences:
+
+- examples remain small enough for local storage and JSON export;
+- future feature extractors can be rerun against the saved landmarks;
+- the dataset cannot reconstruct the original camera image;
+- recognition remains local and does not transmit webcam media;
+- raw video can only be introduced through a future explicit policy decision and schema version.
+
 ## Development principles
 
 - Preserve working milestones before structural changes.

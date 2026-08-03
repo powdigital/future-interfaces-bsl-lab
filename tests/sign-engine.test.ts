@@ -3,6 +3,7 @@ import { SIGN_BANK } from "../src/core/sign-bank.ts";
 import { buildLearnedProfile, recognizeSign } from "../src/core/sign-engine.ts";
 import type { HandMetrics, TrainingExample } from "../src/core/types.ts";
 import { createDefaultResearcherProfile } from "../src/core/research-profile.ts";
+import { assertEvidencePolicy, EVIDENCE_POLICY } from "../src/core/evidence-policy.ts";
 
 const bslOne: HandMetrics = [
   { state: "ambiguous", angle1: 163, angle2: 173, straightness: 0.985, reach: 0.06 },
@@ -51,13 +52,19 @@ describe("learned profiles", () => {
         signId: "bsl-number-1",
         kind: "positive" as const,
         recordedAt: `2026-08-03T12:00:0${index}.000Z`,
-        frames: [bslOne]
+        frames: [bslOne],
+        evidenceFormat: "hand-landmarks-and-metrics-v1" as const,
+        containsVideo: false as const,
+        containsAudio: false as const
       })),
       ...Array.from({ length: 3 }, (_, index) => ({
         signId: "bsl-number-1",
         kind: "negative" as const,
         recordedAt: `2026-08-03T12:01:0${index}.000Z`,
-        frames: [confusingGrab]
+        frames: [confusingGrab],
+        evidenceFormat: "hand-landmarks-and-metrics-v1" as const,
+        containsVideo: false as const,
+        containsAudio: false as const
       }))
     ];
     const profile = buildLearnedProfile("bsl-number-1", examples);
@@ -65,6 +72,36 @@ describe("learned profiles", () => {
     expect(profile?.rules.length).toBeGreaterThan(0);
     expect(profile?.rules.every((rule) => rule.foundation === false)).toBe(true);
     expect(profile?.rules.some((rule) => rule.negativeMedian !== null)).toBe(true);
+  });
+});
+
+describe("evidence policy", () => {
+  it("allows landmarks and metrics without media", () => {
+    expect(EVIDENCE_POLICY.storesLandmarks).toBe(true);
+    expect(EVIDENCE_POLICY.storesVideo).toBe(false);
+    expect(() => assertEvidencePolicy({
+      signId: "bsl-number-1",
+      kind: "positive",
+      recordedAt: "2026-08-03T12:00:00.000Z",
+      frames: [bslOne],
+      landmarkFrames: [Array.from({ length: 21 }, () => ({ x: 0, y: 0, z: 0 }))],
+      evidenceFormat: "hand-landmarks-and-metrics-v1",
+      containsVideo: false,
+      containsAudio: false
+    })).not.toThrow();
+  });
+
+  it("rejects mismatched landmark and measurement frames", () => {
+    expect(() => assertEvidencePolicy({
+      signId: "bsl-number-1",
+      kind: "positive",
+      recordedAt: "2026-08-03T12:00:00.000Z",
+      frames: [bslOne],
+      landmarkFrames: [],
+      evidenceFormat: "hand-landmarks-and-metrics-v1",
+      containsVideo: false,
+      containsAudio: false
+    })).toThrow(/frame counts/i);
   });
 });
 

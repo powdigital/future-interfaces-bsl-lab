@@ -49,6 +49,10 @@ export interface TrainingExample {
   kind: "positive" | "negative";
   recordedAt: string;
   frames: HandMetrics[];
+  landmarkFrames?: Landmark[][];
+  evidenceFormat?: "hand-landmarks-and-metrics-v1";
+  containsVideo?: false;
+  containsAudio?: false;
   researcherId?: string;
   sessionId?: string;
   appVersion?: string;

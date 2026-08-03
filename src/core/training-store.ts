@@ -1,5 +1,6 @@
 import type { LearnedProfile, ResearcherProfile, TrainingExample } from "./types.ts";
 import { createDefaultResearcherProfile, PRIMARY_RESEARCHER_ID } from "./research-profile.ts";
+import { assertEvidencePolicy } from "./evidence-policy.ts";
 
 const DATABASE_NAME = "future-interfaces-bsl";
 const DATABASE_VERSION = 2;
@@ -33,6 +34,7 @@ function openDatabase(): Promise<IDBDatabase> {
 }
 
 export async function addExample(example: TrainingExample): Promise<number> {
+  assertEvidencePolicy(example);
   const database = await openDatabase();
   const request = database.transaction("examples", "readwrite").objectStore("examples").add(example);
   const id = await requestResult(request);
@@ -110,7 +112,7 @@ export async function clearSignTraining(signId: string): Promise<void> {
 }
 
 export interface TrainingExport {
-  schemaVersion: 2;
+  schemaVersion: 3;
   exportedAt: string;
   examples: TrainingExample[];
   profiles: LearnedProfile[];
@@ -118,10 +120,11 @@ export interface TrainingExport {
 }
 
 interface LegacyTrainingExport {
-  schemaVersion: 1;
+  schemaVersion: 1 | 2;
   exportedAt: string;
   examples: TrainingExample[];
   profiles: LearnedProfile[];
+  researcherProfile?: ResearcherProfile;
 }
 
 export async function exportTrainingData(): Promise<TrainingExport> {
@@ -132,7 +135,7 @@ export async function exportTrainingData(): Promise<TrainingExport> {
   const [examples, profiles] = await Promise.all([requestResult(examplesRequest), requestResult(profilesRequest)]);
   database.close();
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     exportedAt: new Date().toISOString(),
     examples: examples as TrainingExample[],
     profiles: profiles as LearnedProfile[],
@@ -141,18 +144,19 @@ export async function exportTrainingData(): Promise<TrainingExport> {
 }
 
 export async function importTrainingData(data: TrainingExport | LegacyTrainingExport): Promise<void> {
-  if (![1, 2].includes(data?.schemaVersion) || !Array.isArray(data.examples) || !Array.isArray(data.profiles)) {
+  if (![1, 2, 3].includes(data?.schemaVersion) || !Array.isArray(data.examples) || !Array.isArray(data.profiles)) {
     throw new Error("Unsupported training data file");
   }
   const database = await openDatabase();
   const transaction = database.transaction(["examples", "profiles", "metadata"], "readwrite");
   data.examples.forEach((example) => {
+    assertEvidencePolicy(example, data.schemaVersion < 3);
     const copy = { ...example };
     delete copy.id;
     transaction.objectStore("examples").add(copy);
   });
   data.profiles.forEach((profile) => transaction.objectStore("profiles").put(profile));
-  if (data.schemaVersion === 2 && "researcherProfile" in data) {
+  if (data.schemaVersion >= 2 && "researcherProfile" in data && data.researcherProfile) {
     transaction.objectStore("metadata").put({ key: "researcher-profile", value: data.researcherProfile });
   }
   await new Promise<void>((resolve, reject) => {

@@ -205,6 +205,10 @@ async function finishRecording() {
     kind: completedSession.kind,
     recordedAt: new Date().toISOString(),
     frames: completedSession.samples,
+    landmarkFrames: completedSession.landmarkFrames,
+    evidenceFormat: "hand-landmarks-and-metrics-v1",
+    containsVideo: false,
+    containsAudio: false,
     researcherId: PRIMARY_RESEARCHER_ID,
     sessionId: researchSessionId,
     appVersion: APP_VERSION,
@@ -236,6 +240,11 @@ function updateDiagnostics(landmarks, now) {
 
   if (recordingSession) {
     recordingSession.samples.push(metrics.map((digit) => ({ ...digit })));
+    recordingSession.landmarkFrames.push(landmarks.map((point) => ({
+      x: point.x,
+      y: point.y,
+      z: point.z || 0
+    })));
     const remaining = Math.max(0, recordingSession.endsAt - now);
     const sign = getSign(recordingSession.signId);
     const kindLabel = recordingSession.kind === "positive" ? "correct" : "incorrect";
@@ -251,7 +260,7 @@ function startRecording(kind) {
     return;
   }
   const sign = getSign(calibrationSignSelect.value);
-  recordingSession = { signId: sign.id, kind, endsAt: performance.now() + 2000, samples: [] };
+  recordingSession = { signId: sign.id, kind, endsAt: performance.now() + 2000, samples: [], landmarkFrames: [] };
   recordingStatus.classList.add("is-recording");
   recordingStatus.textContent = `Recording ${sign.label} ${kind === "positive" ? "correct" : "incorrect"}: 2.0s`;
   recordingProgressBar.style.width = "0%";

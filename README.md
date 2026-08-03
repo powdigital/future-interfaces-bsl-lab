@@ -27,3 +27,5 @@ npm run build
 - `src/main.js` currently owns browser interaction and will be migrated to typed interface modules incrementally.
 
 Training data remains local to the browser until cloud synchronization is deliberately introduced. Exported JSON is the portable backup and review format.
+
+The evidence policy stores normalized hand landmarks and derived measurements only. Raw webcam video, audio, and still images are not retained.
