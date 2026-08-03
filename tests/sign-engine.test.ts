@@ -1,0 +1,79 @@
+import { describe, expect, it } from "vitest";
+import { SIGN_BANK } from "../src/core/sign-bank.ts";
+import { buildLearnedProfile, recognizeSign } from "../src/core/sign-engine.ts";
+import type { HandMetrics, TrainingExample } from "../src/core/types.ts";
+import { createDefaultResearcherProfile } from "../src/core/research-profile.ts";
+
+const bslOne: HandMetrics = [
+  { state: "ambiguous", angle1: 163, angle2: 173, straightness: 0.985, reach: 0.06 },
+  { state: "extended", angle1: 176, angle2: 178, straightness: 1, reach: 1.32 },
+  { state: "folded", angle1: 32, angle2: 163, straightness: 0.23, reach: 0.75 },
+  { state: "folded", angle1: 27, angle2: 168, straightness: 0.21, reach: 0.68 },
+  { state: "folded", angle1: 31, angle2: 168, straightness: 0.23, reach: 0.7 }
+];
+
+const confusingGrab: HandMetrics = [
+  { state: "extended", angle1: 166, angle2: 174, straightness: 0.985, reach: 0.43 },
+  { state: "extended", angle1: 169, angle2: 173, straightness: 0.995, reach: 1.23 },
+  { state: "ambiguous", angle1: 152, angle2: 104, straightness: 0.81, reach: 1.08 },
+  { state: "ambiguous", angle1: 121, angle2: 85, straightness: 0.58, reach: 0.96 },
+  { state: "folded", angle1: 123, angle2: 88, straightness: 0.55, reach: 0.93 }
+];
+
+const openHand: HandMetrics = [
+  { state: "extended", angle1: 168, angle2: 174, straightness: 0.97, reach: 0.38 },
+  { state: "extended", angle1: 176, angle2: 178, straightness: 0.99, reach: 1.32 },
+  { state: "extended", angle1: 175, angle2: 177, straightness: 0.99, reach: 1.28 },
+  { state: "extended", angle1: 174, angle2: 176, straightness: 0.98, reach: 1.23 },
+  { state: "extended", angle1: 171, angle2: 174, straightness: 0.97, reach: 1.18 }
+];
+
+describe("seeded BSL number recognition", () => {
+  it("recognises the recorded BSL 1 geometry", () => {
+    const result = recognizeSign(SIGN_BANK, bslOne);
+    expect(result.match?.sign.id).toBe("bsl-number-1");
+    expect(result.match?.score).toBeGreaterThan(0.9);
+  });
+
+  it("rejects the confusing grab pose", () => {
+    expect(recognizeSign(SIGN_BANK, confusingGrab).match).toBeNull();
+  });
+
+  it("recognises an open hand as number 5", () => {
+    expect(recognizeSign(SIGN_BANK, openHand).match?.sign.id).toBe("bsl-number-5");
+  });
+});
+
+describe("learned profiles", () => {
+  it("keeps learned evidence separate and promotes sufficient evidence", () => {
+    const examples: TrainingExample[] = [
+      ...Array.from({ length: 5 }, (_, index) => ({
+        signId: "bsl-number-1",
+        kind: "positive" as const,
+        recordedAt: `2026-08-03T12:00:0${index}.000Z`,
+        frames: [bslOne]
+      })),
+      ...Array.from({ length: 3 }, (_, index) => ({
+        signId: "bsl-number-1",
+        kind: "negative" as const,
+        recordedAt: `2026-08-03T12:01:0${index}.000Z`,
+        frames: [confusingGrab]
+      }))
+    ];
+    const profile = buildLearnedProfile("bsl-number-1", examples);
+    expect(profile?.evidence.maturity).toBe("established");
+    expect(profile?.rules.length).toBeGreaterThan(0);
+    expect(profile?.rules.every((rule) => rule.foundation === false)).toBe(true);
+    expect(profile?.rules.some((rule) => rule.negativeMedian !== null)).toBe(true);
+  });
+});
+
+describe("personal research profile", () => {
+  it("starts local, private, and deliberately unclassified for handedness", () => {
+    const profile = createDefaultResearcherProfile(new Date("2026-08-03T12:00:00.000Z"));
+    expect(profile.id).toBe("local-primary");
+    expect(profile.scope).toBe("personal-local");
+    expect(profile.dominantHand).toBe("unknown");
+    expect(profile.signingHand).toBe("unknown");
+  });
+});
