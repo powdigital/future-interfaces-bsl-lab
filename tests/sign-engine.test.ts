@@ -37,6 +37,14 @@ const openHand: HandMetrics = [
   { state: "extended", angle1: 171, angle2: 174, straightness: 0.97, reach: 1.18 }
 ];
 
+const bslNineWithBorderlineRing: HandMetrics = [
+  { state: "extended", angle1: 164, angle2: 171, straightness: 0.96, reach: 0.36 },
+  { state: "extended", angle1: 174, angle2: 177, straightness: 0.99, reach: 1.3 },
+  { state: "extended", angle1: 171, angle2: 175, straightness: 0.98, reach: 1.24 },
+  { state: "ambiguous", angle1: 141, angle2: 158, straightness: 0.88, reach: 1.1 },
+  { state: "folded", angle1: 72, angle2: 112, straightness: 0.56, reach: 0.78 }
+];
+
 const foldedDigit = { state: "folded" as const, angle1: 70, angle2: 90, straightness: 0.5, reach: 0.75 };
 const extendedDigit = { state: "extended" as const, angle1: 170, angle2: 175, straightness: 0.98, reach: 1.25 };
 const ambiguousDigit = { state: "ambiguous" as const, angle1: 135, angle2: 140, straightness: 0.75, reach: 1 };
@@ -73,6 +81,10 @@ describe("seeded BSL number recognition", () => {
 
   it("recognises two open hands as number 10", () => {
     expect(recognizeHands(SIGN_BANK, [openHand, openHand]).match?.sign.id).toBe("bsl-number-10");
+  });
+
+  it("recognises Number 9 when its ring finger is nearly straight but still labelled ambiguous", () => {
+    expect(recognizeSign(SIGN_BANK, bslNineWithBorderlineRing).match?.sign.id).toBe("bsl-number-9");
   });
 });
 

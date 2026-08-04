@@ -107,11 +107,32 @@ function rulesScore(features: FeatureMap, rules: SignRule[]): number | null {
   return weights ? score / weights : null;
 }
 
+function ambiguousExtensionConfidence(digit: DigitMetrics, digitIndex: number): number {
+  if (digitIndex === 0) {
+    const reach = clamp((digit.reach - 0.01) / 0.28, 0, 1);
+    const angle1 = clamp((digit.angle1 - 125) / 35, 0, 1);
+    const angle2 = clamp((digit.angle2 - 135) / 30, 0, 1);
+    const straightness = clamp((digit.straightness - 0.75) / 0.2, 0, 1);
+    return reach * 0.85 + angle1 * 0.05 + angle2 * 0.05 + straightness * 0.05;
+  }
+
+  const angle1 = clamp((digit.angle1 - 120) / 40, 0, 1);
+  const angle2 = clamp((digit.angle2 - 135) / 35, 0, 1);
+  const straightness = clamp((digit.straightness - 0.72) / 0.23, 0, 1);
+  const reach = clamp((digit.reach - 0.92) / 0.22, 0, 1);
+  return angle1 * 0.35 + angle2 * 0.1 + straightness * 0.25 + reach * 0.3;
+}
+
 function statePatternScore(metrics: HandMetrics, pattern: SignDefinition["statePattern"]): number {
   const scores: number[] = pattern.map((expected, index): number => {
-    const actual = metrics[index]?.state;
+    const digit = metrics[index];
+    const actual = digit?.state;
     if (actual === expected) return 1;
-    if (actual === "ambiguous") return 0.35;
+    if (expected === "ambiguous") return actual === "ambiguous" ? 1 : 0.25;
+    if (actual === "ambiguous") {
+      const extension = ambiguousExtensionConfidence(digit, index);
+      return expected === "extended" ? extension : 1 - extension;
+    }
     return 0;
   });
   return scores.reduce((sum, value) => sum + value, 0) / scores.length;
