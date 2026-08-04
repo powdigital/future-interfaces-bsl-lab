@@ -1,4 +1,5 @@
-import type { DigitMetrics, DigitState, HandMetrics, LearnedProfile, RecognitionCandidate, SignDefinition, SignRule, TrainingExample } from "./types.ts";
+import { getHandOrientation } from "./hand-metrics.ts";
+import type { DigitMetrics, DigitState, HandMetrics, HandOrientationMetrics, LearnedProfile, RecognitionCandidate, SignDefinition, SignRule, TrainingExample } from "./types.ts";
 
 const DIGIT_NAMES = ["thumb", "index", "middle", "ring", "pinky"] as const;
 const METRIC_NAMES = ["angle1", "angle2", "straightness", "reach"] as const;
@@ -6,13 +7,14 @@ type FeatureMap = Record<string, number>;
 
 const clamp = (value: number, minimum: number, maximum: number): number => Math.min(maximum, Math.max(minimum, value));
 
-export function flattenMetrics(metrics: HandMetrics): FeatureMap {
+export function flattenMetrics(metrics: HandMetrics, orientation?: HandOrientationMetrics): FeatureMap {
   const features: FeatureMap = {};
   metrics.forEach((digit, digitIndex) => {
     METRIC_NAMES.forEach((metric) => {
       features[`${DIGIT_NAMES[digitIndex]}.${metric}`] = digit[metric];
     });
   });
+  if (orientation) features["hand.roll"] = orientation.roll;
   return features;
 }
 
@@ -29,6 +31,7 @@ function percentile(values: number[], fraction: number): number {
 const median = (values: number[]): number => percentile(values, 0.5);
 
 function featureScale(feature: string): number {
+  if (feature === "hand.roll") return 18;
   if (feature.endsWith("angle1") || feature.endsWith("angle2")) return 18;
   if (feature.endsWith("straightness")) return 0.1;
   return 0.12;
@@ -38,8 +41,13 @@ export function buildLearnedProfile(signId: string, examples: TrainingExample[])
   const positives = examples.filter((example) => example.kind === "positive");
   const negatives = examples.filter((example) => example.kind === "negative");
   const positiveMetricFrames = positives.flatMap((example) => example.frames);
-  const positiveFrames = positiveMetricFrames.map(flattenMetrics);
-  const negativeFrames = negatives.flatMap((example) => example.frames).map(flattenMetrics);
+  const featureFrames = (example: TrainingExample) => example.frames.map((frame, index) => {
+    const landmarks = example.landmarkFrames?.[index];
+    const orientation = landmarks && landmarks.length >= 10 ? getHandOrientation(landmarks) : undefined;
+    return flattenMetrics(frame, orientation);
+  });
+  const positiveFrames = positives.flatMap(featureFrames);
+  const negativeFrames = negatives.flatMap(featureFrames);
   if (!positiveFrames.length) return null;
 
   const stateEvidence = Array.from({ length: 5 }, (_, digitIndex) => {
@@ -56,7 +64,8 @@ export function buildLearnedProfile(signId: string, examples: TrainingExample[])
     return { state, confidence: count / positiveMetricFrames.length };
   });
 
-  const candidateRules: SignRule[] = Object.keys(positiveFrames[0]).map((feature) => {
+  const featureNames = [...new Set(positiveFrames.flatMap((frame) => Object.keys(frame)))];
+  const candidateRules: SignRule[] = featureNames.map((feature) => {
     const positiveValues = positiveFrames.map((frame) => frame[feature]).filter(Number.isFinite);
     const negativeValues = negativeFrames.map((frame) => frame[feature]).filter(Number.isFinite);
     const low = percentile(positiveValues, 0.05);
@@ -157,11 +166,17 @@ function statePatternScore(metrics: HandMetrics, pattern: SignDefinition["stateP
   return scores.reduce((sum, value, index) => sum + value * weights[index], 0) / totalWeight;
 }
 
-export function scoreSign(sign: SignDefinition, metrics: HandMetrics, profile?: LearnedProfile): number {
-  const features = flattenMetrics(metrics);
-  const baseRulesScore = rulesScore(features, sign.baseRules);
+export function scoreSign(sign: SignDefinition, metrics: HandMetrics, profile?: LearnedProfile, orientation?: HandOrientationMetrics): number {
+  const features = flattenMetrics(metrics, orientation);
+  const orientationRules = sign.baseRules.filter((rule) => rule.feature === "hand.roll");
+  const geometryRules = sign.baseRules.filter((rule) => rule.feature !== "hand.roll");
+  const orientationScore = rulesScore(features, orientationRules);
+  const geometryRulesScore = rulesScore(features, geometryRules);
   const patternScore = statePatternScore(metrics, sign.statePattern);
-  const baseScore = baseRulesScore === null ? patternScore : (baseRulesScore + patternScore) / 2;
+  const geometryScore = geometryRulesScore === null ? patternScore : (geometryRulesScore + patternScore) / 2;
+  const baseScore = orientationScore === null
+    ? geometryScore
+    : geometryScore * (0.4 + orientationScore * 0.6);
   if (!profile) return baseScore;
 
   const positiveRulesScore = rulesScore(features, profile.rules);
@@ -193,14 +208,14 @@ export function scoreSign(sign: SignDefinition, metrics: HandMetrics, profile?: 
   return baseScore * (1 - evidenceWeight) + learnedScore * evidenceWeight;
 }
 
-export function recognizeSign(signBank: SignDefinition[], metrics: HandMetrics, profiles = new Map<string, LearnedProfile>()): {
+export function recognizeSign(signBank: SignDefinition[], metrics: HandMetrics, profiles = new Map<string, LearnedProfile>(), orientation?: HandOrientationMetrics): {
   match: RecognitionCandidate | null;
   results: RecognitionCandidate[];
   margin: number;
 } {
   const results = signBank
     .filter((sign) => sign.recognitionType === "static" && sign.hands === 1)
-    .map((sign) => ({ sign, score: scoreSign(sign, metrics, profiles.get(sign.id)) }))
+    .map((sign) => ({ sign, score: scoreSign(sign, metrics, profiles.get(sign.id), orientation) }))
     .sort((a, b) => b.score - a.score);
   const best = results[0];
   const runnerUp = results[1];
@@ -209,7 +224,7 @@ export function recognizeSign(signBank: SignDefinition[], metrics: HandMetrics, 
   return { match, results, margin };
 }
 
-export function recognizeHands(signBank: SignDefinition[], hands: HandMetrics[], profiles = new Map<string, LearnedProfile>()): {
+export function recognizeHands(signBank: SignDefinition[], hands: HandMetrics[], profiles = new Map<string, LearnedProfile>(), orientations: HandOrientationMetrics[] = []): {
   match: RecognitionCandidate | null;
   results: RecognitionCandidate[];
   margin: number;
@@ -222,12 +237,12 @@ export function recognizeHands(signBank: SignDefinition[], hands: HandMetrics[],
       if (sign.hands === 2) {
         const score = hands
           .slice(0, 2)
-          .map((metrics) => scoreSign(sign, metrics, profiles.get(sign.id)))
+          .map((metrics, index) => scoreSign(sign, metrics, profiles.get(sign.id), orientations[index]))
           .reduce((sum, value) => sum + value, 0) / 2;
         return { sign, score };
       }
 
-      const bestHandScore = Math.max(...hands.map((metrics) => scoreSign(sign, metrics, profiles.get(sign.id))));
+      const bestHandScore = Math.max(...hands.map((metrics, index) => scoreSign(sign, metrics, profiles.get(sign.id), orientations[index])));
       const extraHandPenalty = hands.length > 1 ? 0.65 : 1;
       return { sign, score: bestHandScore * extraHandPenalty };
     })

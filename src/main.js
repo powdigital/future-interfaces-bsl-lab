@@ -3,7 +3,7 @@ import {
   HandLandmarker
 } from "@mediapipe/tasks-vision";
 import "./styles.css";
-import { DIGIT_STATE, getHandMetrics } from "./core/hand-metrics.ts";
+import { DIGIT_STATE, getHandMetrics, getHandOrientation } from "./core/hand-metrics.ts";
 import { SIGN_BANK, getSign } from "./core/sign-bank.ts";
 import { buildLearnedProfile, recognizeHands } from "./core/sign-engine.ts";
 import { createChainGame } from "./core/chain-game.ts";
@@ -113,10 +113,10 @@ function renderDiagnostics(metrics) {
   `).join("");
 }
 
-function renderRecognitionDiagnostic(recognition) {
+function renderRecognitionDiagnostic(recognition, orientation) {
   if (!recognition?.results?.length) {
     recognitionDiagnostic.className = "recognition-diagnostic";
-    recognitionDiagnostic.textContent = "Show a hand to inspect the selected sign's live score.";
+    recognitionDiagnostic.textContent = "Show a hand to inspect orientation and the selected sign's live score.";
     return;
   }
 
@@ -133,6 +133,7 @@ function renderRecognitionDiagnostic(recognition) {
   recognitionDiagnostic.className = `recognition-diagnostic ${state}`;
   recognitionDiagnostic.innerHTML = `
     <strong>${resultCopy}</strong>
+    <span>Palm orientation: ${orientation?.roll.toFixed(0) || "0"}° from upright</span>
     <span>Selected ${selected?.sign.label || "sign"}: ${selectedScore}% · target ${selectedMinimum}%</span>
     <span>Top candidate: ${top.sign.label} ${Math.round(top.score * 100)}% · margin ${margin}%</span>
   `;
@@ -746,9 +747,10 @@ function track(now) {
     if (hands.length) lastDetectedHands = hands;
     if (!recordingSession) {
       const handMetrics = hands.map((landmarks) => getHandMetrics(landmarks));
-      const recognition = handMetrics.length ? recognizeHands(SIGN_BANK, handMetrics, learnedProfiles) : null;
+      const handOrientations = hands.map((landmarks) => getHandOrientation(landmarks));
+      const recognition = handMetrics.length ? recognizeHands(SIGN_BANK, handMetrics, learnedProfiles, handOrientations) : null;
       updateGestureRecognition(recognition?.match?.sign.id || null, now);
-      if (!diagnosticsPanel.hidden) renderRecognitionDiagnostic(recognition);
+      if (!diagnosticsPanel.hidden) renderRecognitionDiagnostic(recognition, handOrientations[0]);
     }
     updateDiagnostics(hands[0] || null, now);
     handCountCopy.textContent = `${hands.length} ${hands.length === 1 ? "HAND" : "HANDS"}`;

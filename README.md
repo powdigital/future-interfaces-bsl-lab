@@ -37,4 +37,6 @@ Training derives a learned finger-state pattern as well as continuous geometry r
 
 Established profiles retain the seeded definition as a fallback for valid natural variations outside narrow learned ranges, while trained negative evidence can still veto known false matches. Diagnostics also shows live selected-sign, top-candidate, threshold, and margin scores.
 
+Palm-axis orientation is measured from the wrist to the middle-finger base. It is both a seeded foundation rule and a learned continuous feature, allowing otherwise similar finger shapes such as Numbers 4 and 9 to be separated by hand rotation.
+
 The current number library contains help overlays for 1 to 10. Numbers 1 to 9 can be trained as one-hand signs. Number 10 currently uses a provisional two-open-hand rule and is not included in calibration until the evidence format supports paired hands.

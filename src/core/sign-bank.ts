@@ -1,6 +1,6 @@
 import type { DigitState, SignDefinition, SignRule, TrainingPrompt } from "./types.ts";
 
-export const SIGN_BANK_VERSION = 2;
+export const SIGN_BANK_VERSION = 3;
 
 const correctPrompts: TrainingPrompt[] = [
   { id: "natural", title: "Natural position", instruction: "Make the sign naturally with your right hand facing the camera." },
@@ -9,6 +9,22 @@ const correctPrompts: TrainingPrompt[] = [
   { id: "left-angle", title: "Turn slightly left", instruction: "Rotate your wrist slightly left without changing the sign." },
   { id: "right-angle", title: "Turn slightly right", instruction: "Rotate your wrist slightly right without changing the sign." }
 ];
+
+const uprightHandRule: SignRule = {
+  feature: "hand.roll",
+  min: 0,
+  max: 35,
+  weight: 6,
+  foundation: true
+};
+
+const horizontalHandRule: SignRule = {
+  feature: "hand.roll",
+  min: 55,
+  max: 125,
+  weight: 7,
+  foundation: true
+};
 
 const incorrectPrompts: Record<number, TrainingPrompt[]> = {
   1: [
@@ -86,6 +102,7 @@ function number(value: number, statePattern: DigitState[], baseRules: SignRule[]
 
 export const SIGN_BANK: SignDefinition[] = [
   number(1, ["folded", "extended", "folded", "folded", "folded"], [
+    uprightHandRule,
     { feature: "index.angle1", min: 160, max: 180, weight: 2, foundation: true },
     { feature: "index.angle2", min: 160, max: 180, weight: 2, foundation: true },
     { feature: "index.straightness", min: 0.9, max: 1.02, weight: 2, foundation: true },
@@ -101,16 +118,18 @@ export const SIGN_BANK: SignDefinition[] = [
     { feature: "pinky.reach", min: 0.4, max: 0.84, weight: 3, foundation: true },
     { feature: "thumb.reach", min: -0.35, max: 0.35, weight: 1, foundation: false }
   ]),
-  number(2, ["folded", "extended", "extended", "folded", "folded"]),
-  number(3, ["folded", "extended", "extended", "extended", "folded"]),
+  number(2, ["folded", "extended", "extended", "folded", "folded"], [uprightHandRule]),
+  number(3, ["folded", "extended", "extended", "extended", "folded"], [uprightHandRule]),
   number(4, ["folded", "extended", "extended", "extended", "extended"], [
+    uprightHandRule,
     { feature: "thumb.reach", min: -0.35, max: 0.35, weight: 4, foundation: false }
   ]),
-  number(5, ["extended", "extended", "extended", "extended", "extended"]),
+  number(5, ["extended", "extended", "extended", "extended", "extended"], [uprightHandRule]),
   number(6, ["extended", "folded", "folded", "folded", "folded"]),
   number(7, ["extended", "extended", "folded", "folded", "folded"]),
   number(8, ["extended", "extended", "extended", "folded", "folded"]),
   number(9, ["ambiguous", "extended", "extended", "extended", "extended"], [
+    horizontalHandRule,
     { feature: "thumb.reach", min: -0.8, max: -0.35, weight: 5, foundation: false }
   ]),
   number(10, ["extended", "extended", "extended", "extended", "extended"], [], 2)

@@ -14,6 +14,10 @@ export interface DigitMetrics {
   reach: number;
 }
 
+export interface HandOrientationMetrics {
+  roll: number;
+}
+
 export type HandMetrics = [DigitMetrics, DigitMetrics, DigitMetrics, DigitMetrics, DigitMetrics];
 
 export interface SignRule {

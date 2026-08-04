@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { SIGN_BANK } from "../src/core/sign-bank.ts";
 import { buildLearnedProfile, recognizeHands, recognizeSign, scoreSign } from "../src/core/sign-engine.ts";
-import type { HandMetrics, TrainingExample } from "../src/core/types.ts";
+import { getHandOrientation } from "../src/core/hand-metrics.ts";
+import type { HandMetrics, HandOrientationMetrics, Landmark, TrainingExample } from "../src/core/types.ts";
 import { createDefaultResearcherProfile } from "../src/core/research-profile.ts";
 import { assertEvidencePolicy, EVIDENCE_POLICY } from "../src/core/evidence-policy.ts";
 
@@ -61,6 +62,18 @@ const bslNineNaturalVariation: HandMetrics = [
   { state: "extended", angle1: 164, angle2: 172, straightness: 0.95, reach: 1.24 }
 ];
 
+const uprightOrientation: HandOrientationMetrics = { roll: 5 };
+const horizontalOrientation: HandOrientationMetrics = { roll: 90 };
+
+function landmarksForOrientation(orientation: "upright" | "horizontal"): Landmark[] {
+  const landmarks = Array.from({ length: 21 }, () => ({ x: 0.5, y: 0.5, z: 0 }));
+  landmarks[0] = { x: 0.5, y: 0.8, z: 0 };
+  landmarks[9] = orientation === "upright"
+    ? { x: 0.5, y: 0.4, z: 0 }
+    : { x: 0.9, y: 0.8, z: 0 };
+  return landmarks;
+}
+
 const foldedDigit = { state: "folded" as const, angle1: 70, angle2: 90, straightness: 0.5, reach: 0.75 };
 const extendedDigit = { state: "extended" as const, angle1: 170, angle2: 175, straightness: 0.98, reach: 1.25 };
 const ambiguousDigit = { state: "ambiguous" as const, angle1: 135, angle2: 140, straightness: 0.75, reach: 1 };
@@ -73,17 +86,18 @@ function metricsFor(states: HandMetrics[number]["state"][]): HandMetrics {
 
 describe("seeded BSL number recognition", () => {
   it("recognises the recorded BSL 1 geometry", () => {
-    const result = recognizeSign(SIGN_BANK, bslOne);
+    const result = recognizeSign(SIGN_BANK, bslOne, new Map(), uprightOrientation);
     expect(result.match?.sign.id).toBe("bsl-number-1");
     expect(result.match?.score).toBeGreaterThan(0.9);
+    expect(recognizeSign(SIGN_BANK, bslOne, new Map(), horizontalOrientation).match?.sign.id).not.toBe("bsl-number-1");
   });
 
   it("rejects the confusing grab pose", () => {
-    expect(recognizeSign(SIGN_BANK, confusingGrab).match).toBeNull();
+    expect(recognizeSign(SIGN_BANK, confusingGrab, new Map(), uprightOrientation).match).toBeNull();
   });
 
   it("recognises an open hand as number 5", () => {
-    expect(recognizeSign(SIGN_BANK, openHand).match?.sign.id).toBe("bsl-number-5");
+    expect(recognizeSign(SIGN_BANK, openHand, new Map(), uprightOrientation).match?.sign.id).toBe("bsl-number-5");
   });
 
   it.each([
@@ -99,8 +113,24 @@ describe("seeded BSL number recognition", () => {
   });
 
   it("recognises the captured Number 9 geometry and separates it from Number 4", () => {
-    expect(recognizeSign(SIGN_BANK, bslNineFromCalibration).match?.sign.id).toBe("bsl-number-9");
-    expect(recognizeSign(SIGN_BANK, bslFourNeighbor).match?.sign.id).toBe("bsl-number-4");
+    expect(recognizeSign(SIGN_BANK, bslNineFromCalibration, new Map(), horizontalOrientation).match?.sign.id).toBe("bsl-number-9");
+    expect(recognizeSign(SIGN_BANK, bslNineFromCalibration, new Map(), uprightOrientation).match?.sign.id).not.toBe("bsl-number-9");
+    expect(recognizeSign(SIGN_BANK, bslFourNeighbor, new Map(), uprightOrientation).match?.sign.id).toBe("bsl-number-4");
+    expect(recognizeSign(SIGN_BANK, bslFourNeighbor, new Map(), horizontalOrientation).match?.sign.id).not.toBe("bsl-number-4");
+  });
+
+  it("requires an upright palm axis for Numbers 1 through 5", () => {
+    SIGN_BANK.filter((sign) => Number(sign.shortLabel) <= 5).forEach((sign) => {
+      const rule = sign.baseRules.find((candidate) => candidate.feature === "hand.roll");
+      expect(rule?.min).toBe(0);
+      expect(rule?.max).toBe(35);
+      expect(rule?.foundation).toBe(true);
+    });
+  });
+
+  it("measures palm roll from the wrist to the middle-finger base", () => {
+    expect(getHandOrientation(landmarksForOrientation("upright")).roll).toBeCloseTo(0);
+    expect(getHandOrientation(landmarksForOrientation("horizontal")).roll).toBeCloseTo(90);
   });
 });
 
@@ -170,9 +200,9 @@ describe("learned profiles", () => {
     const profile = buildLearnedProfile("bsl-number-1", examples);
     const profiles = new Map(profile ? [[profile.signId, profile]] : []);
     const seededOne = SIGN_BANK.find((sign) => sign.id === "bsl-number-1");
-    expect(recognizeSign(SIGN_BANK, bslOne, profiles).match?.sign.id).toBe("bsl-number-1");
-    expect(recognizeSign(SIGN_BANK, thumbOutOne, profiles).match?.sign.id).toBe("bsl-number-7");
-    expect(seededOne && profile ? scoreSign(seededOne, thumbOutOne, profile) : 1).toBeLessThan(0.76);
+    expect(recognizeSign(SIGN_BANK, bslOne, profiles, uprightOrientation).match?.sign.id).toBe("bsl-number-1");
+    expect(recognizeSign(SIGN_BANK, thumbOutOne, profiles, uprightOrientation).match?.sign.id).toBe("bsl-number-7");
+    expect(seededOne && profile ? scoreSign(seededOne, thumbOutOne, profile, uprightOrientation) : 1).toBeLessThan(0.76);
   });
 
   it("lets established training override an incorrect provisional pattern", () => {
@@ -182,6 +212,7 @@ describe("learned profiles", () => {
         kind: "positive" as const,
         recordedAt: `2026-08-04T12:00:0${index}.000Z`,
         frames: [bslNineFromCalibration],
+        landmarkFrames: [landmarksForOrientation("horizontal")],
         evidenceFormat: "hand-landmarks-and-metrics-v1" as const,
         containsVideo: false as const,
         containsAudio: false as const
@@ -191,6 +222,7 @@ describe("learned profiles", () => {
         kind: "negative" as const,
         recordedAt: `2026-08-04T12:01:0${index}.000Z`,
         frames: [bslFourNeighbor],
+        landmarkFrames: [landmarksForOrientation("upright")],
         evidenceFormat: "hand-landmarks-and-metrics-v1" as const,
         containsVideo: false as const,
         containsAudio: false as const
@@ -202,12 +234,13 @@ describe("learned profiles", () => {
     expect(profile?.learnedStatePattern).toEqual(["ambiguous", "extended", "extended", "extended", "extended"]);
     expect(profile?.stateConfidence).toEqual([1, 1, 1, 1, 1]);
     expect(profile?.evidence.maturity).toBe("established");
+    expect(profile?.rules.some((rule) => rule.feature === "hand.roll")).toBe(true);
     expect(seededNine && profile ? scoreSign({
       ...seededNine,
       statePattern: ["extended", "extended", "extended", "extended", "folded"],
       baseRules: []
-    }, bslNineFromCalibration, profile) : 0).toBeGreaterThan(0.9);
-    expect(seededNine && profile ? scoreSign(seededNine, bslNineNaturalVariation, profile) : 0).toBeGreaterThan(0.82);
+    }, bslNineFromCalibration, profile, horizontalOrientation) : 0).toBeGreaterThan(0.9);
+    expect(seededNine && profile ? scoreSign(seededNine, bslNineNaturalVariation, profile, horizontalOrientation) : 0).toBeGreaterThan(0.82);
   });
 });
 

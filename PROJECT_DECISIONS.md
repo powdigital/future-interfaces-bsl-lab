@@ -74,3 +74,11 @@ Number 9 provided the first correction. The recorded pattern is an ambiguous thu
 Established profiles use a guarded decision rule. Positive evidence can override an incorrect provisional seed, and negative evidence can veto a known false match. When learned ranges are simply uncertain about a natural variation, the valid seed remains available as a fallback instead of being blocked.
 
 Diagnostics displays the selected sign score, required threshold, current top candidate, and recognition margin live. This makes recognition failures inspectable during local training without exporting screenshots.
+
+## 2026-08-05: Palm orientation is a foundation feature
+
+Finger states do not uniquely identify a sign. The system now measures palm-axis roll from the wrist to the middle-finger base. Zero degrees represents an upright hand and 90 degrees represents a horizontal hand.
+
+Numbers 1 to 5 require an upright palm axis within a broad provisional range of 0 to 35 degrees. Number 9 requires a horizontal palm axis from 55 to 125 degrees. Orientation acts as a major score gate, so matching finger geometry cannot compensate for a clearly incorrect orientation.
+
+Orientation is derived from the landmarks already stored with every recording. It therefore becomes a learned continuous feature when profiles are rebuilt, without storing any additional camera media or requiring a database migration.
