@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { SIGN_BANK } from "../src/core/sign-bank.ts";
-import { buildLearnedProfile, recognizeSign } from "../src/core/sign-engine.ts";
+import { buildLearnedProfile, recognizeHands, recognizeSign } from "../src/core/sign-engine.ts";
 import type { HandMetrics, TrainingExample } from "../src/core/types.ts";
 import { createDefaultResearcherProfile } from "../src/core/research-profile.ts";
 import { assertEvidencePolicy, EVIDENCE_POLICY } from "../src/core/evidence-policy.ts";
@@ -37,6 +37,16 @@ const openHand: HandMetrics = [
   { state: "extended", angle1: 171, angle2: 174, straightness: 0.97, reach: 1.18 }
 ];
 
+const foldedDigit = { state: "folded" as const, angle1: 70, angle2: 90, straightness: 0.5, reach: 0.75 };
+const extendedDigit = { state: "extended" as const, angle1: 170, angle2: 175, straightness: 0.98, reach: 1.25 };
+const ambiguousDigit = { state: "ambiguous" as const, angle1: 135, angle2: 140, straightness: 0.75, reach: 1 };
+
+function metricsFor(states: HandMetrics[number]["state"][]): HandMetrics {
+  return states.map((state) => ({
+    ...(state === "extended" ? extendedDigit : state === "folded" ? foldedDigit : ambiguousDigit)
+  })) as HandMetrics;
+}
+
 describe("seeded BSL number recognition", () => {
   it("recognises the recorded BSL 1 geometry", () => {
     const result = recognizeSign(SIGN_BANK, bslOne);
@@ -50,6 +60,19 @@ describe("seeded BSL number recognition", () => {
 
   it("recognises an open hand as number 5", () => {
     expect(recognizeSign(SIGN_BANK, openHand).match?.sign.id).toBe("bsl-number-5");
+  });
+
+  it.each([
+    [6, ["extended", "folded", "folded", "folded", "folded"]],
+    [7, ["extended", "extended", "folded", "folded", "folded"]],
+    [8, ["extended", "extended", "extended", "folded", "folded"]],
+    [9, ["extended", "extended", "extended", "extended", "folded"]]
+  ] as const)("recognises the provisional state pattern for number %i", (number, states) => {
+    expect(recognizeSign(SIGN_BANK, metricsFor([...states])).match?.sign.id).toBe(`bsl-number-${number}`);
+  });
+
+  it("recognises two open hands as number 10", () => {
+    expect(recognizeHands(SIGN_BANK, [openHand, openHand]).match?.sign.id).toBe("bsl-number-10");
   });
 });
 
@@ -93,7 +116,7 @@ describe("learned profiles", () => {
     expect(profile?.rules.some((rule) => rule.negativeMedian !== null)).toBe(true);
   });
 
-  it("lets trained thumb-out negatives veto the seeded Number 1 rule", () => {
+  it("keeps a trained thumb-out pose from matching Number 1", () => {
     const examples: TrainingExample[] = [
       ...Array.from({ length: 5 }, (_, index) => ({
         signId: "bsl-number-1",
@@ -117,7 +140,7 @@ describe("learned profiles", () => {
     const profile = buildLearnedProfile("bsl-number-1", examples);
     const profiles = new Map(profile ? [[profile.signId, profile]] : []);
     expect(recognizeSign(SIGN_BANK, bslOne, profiles).match?.sign.id).toBe("bsl-number-1");
-    expect(recognizeSign(SIGN_BANK, thumbOutOne, profiles).match).toBeNull();
+    expect(recognizeSign(SIGN_BANK, thumbOutOne, profiles).match?.sign.id).toBe("bsl-number-7");
   });
 });
 

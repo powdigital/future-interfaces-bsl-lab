@@ -54,3 +54,11 @@ Each number begins with an eight-step guided session containing five correct var
 Manual positive and negative capture remains available as an advanced tool for failures discovered outside the guided session.
 
 The primary calibration panel also exposes **Capture false match**. When an incorrect pose is recognized as the selected sign, the researcher can hold that pose and add it directly to the negative evidence set.
+
+## 2026-08-04: Five-number game checkpoints
+
+The first number game uses two replaceable five-number stages: 1 to 5 and 6 to 10. Correct numbers must be recognized in order. Completing a stage flashes its five rows and shows a reward over the number rail.
+
+A confidently recognized wrong number breaks only the current five-number stage. A mistake during 1 to 5 resets progress to zero. A mistake during 6 to 10 returns progress to checkpoint 5. The rules live in `src/core/chain-game.ts`, independently from recognition and interface animation, so a later difficulty mode can replace them.
+
+Numbers 6 to 9 begin as provisional one-hand patterns and are available to the existing evidence workflow. Number 10 is provisionally recognized from two open hands. Two-hand calibration needs its own evidence schema before it is added to guided training.

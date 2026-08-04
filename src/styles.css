@@ -135,7 +135,7 @@ h1 span { color: rgba(255, 122, 0, 0.55); font-weight: 400; }
 .database-controls button:hover, .import-training:hover { border-color: var(--signal); color: var(--signal); }
 .import-training input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 
-.gesture-rail { z-index: 4; display: flex; flex-direction: column; min-width: 0; border-left: 1px solid var(--line); background: rgba(0,0,0,.96); padding: 30px 24px 22px; }
+.gesture-rail { position: relative; z-index: 4; display: flex; flex-direction: column; min-width: 0; overflow: hidden; border-left: 1px solid var(--line); background: rgba(0,0,0,.96); padding: 30px 24px 22px; }
 .rail-heading { display: flex; justify-content: space-between; padding-bottom: 19px; color: var(--muted); border-bottom: 1px solid var(--line); }
 .chain-meter { display: flex; align-items: baseline; justify-content: space-between; padding: 16px 0 10px; color: #555; text-transform: uppercase; letter-spacing: .14em; font-size: 9px; }
 .chain-meter strong { color: #777; font-size: 19px; font-weight: 400; letter-spacing: .04em; }
@@ -150,10 +150,50 @@ h1 span { color: rgba(255, 122, 0, 0.55); font-weight: 400; }
 .gesture-rail li.is-complete { color: var(--signal); background: linear-gradient(90deg, transparent, rgba(207,255,56,.06)); }
 .gesture-rail li.is-complete::after { border-color: var(--signal); background: var(--signal); box-shadow: 0 0 12px var(--signal); }
 .gesture-rail li.is-hit { z-index: 2; animation: gesture-bounce .62s cubic-bezier(.2,.8,.3,1) both; }
+.gesture-rail li.is-milestone-flash { z-index: 2; animation: milestone-row-flash 1.3s ease-in-out both; }
+.gesture-rail li.is-error-hit { color: #ff4040; background: linear-gradient(90deg, transparent, rgba(255,64,64,.18)); animation: error-row-flash 1s ease-out both; }
+.gesture-rail li.is-error-hit::after { border-color: #ff4040; background: #ff4040; box-shadow: 0 0 14px #ff4040; }
 .gesture-rail li[data-gesture] { cursor: pointer; }
 .gesture-rail li[data-gesture]:hover,
 .gesture-rail li[data-gesture]:focus-visible { color: #ff7a00; outline: none; }
 .rail-note { margin: 20px 0 0; color: #444; }
+
+.chain-reward {
+  position: absolute;
+  z-index: 8;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 9px;
+  visibility: hidden;
+  padding: 24px;
+  background: rgba(0,0,0,.86);
+  text-align: center;
+  text-transform: uppercase;
+  pointer-events: none;
+}
+.chain-reward span, .chain-reward small { color: var(--signal); font-size: 9px; font-weight: 400; letter-spacing: .15em; }
+.chain-reward strong { color: #fff; font-size: clamp(25px, 3vw, 42px); font-weight: 400; letter-spacing: .04em; }
+.chain-reward.is-showing { visibility: visible; animation: reward-overlay 1.45s cubic-bezier(.16,.8,.3,1) both; }
+
+.chain-failure {
+  position: absolute;
+  z-index: 7;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  visibility: hidden;
+  background: rgba(18,0,0,.26);
+  text-align: center;
+  text-transform: uppercase;
+  pointer-events: none;
+}
+.chain-failure-cross { color: #ff3434; font-size: clamp(170px, 30vw, 440px); font-weight: 100; line-height: .62; text-shadow: 0 0 36px rgba(255,0,0,.45); }
+.chain-failure strong { margin-top: 28px; color: #fff; font-size: 20px; font-weight: 400; letter-spacing: .14em; }
+.chain-failure small { margin-top: 9px; color: #ff6969; font-size: 9px; letter-spacing: .15em; }
+.chain-failure.is-showing { visibility: visible; animation: failure-overlay 1s ease-out both; }
 
 .gesture-response {
   position: fixed;
@@ -173,6 +213,7 @@ h1 span { color: rgba(255, 122, 0, 0.55); font-weight: 400; }
   object-fit: contain;
   mix-blend-mode: screen;
 }
+.gesture-response img.is-inverted { filter: invert(1); }
 .gesture-response.is-pinging {
   visibility: visible;
   animation: response-fade 1s ease-out both;
@@ -198,6 +239,32 @@ h1 span { color: rgba(255, 122, 0, 0.55); font-weight: 400; }
   68% { transform: scale(1.07); }
   84% { transform: scale(.99); }
   100% { transform: scale(1); }
+}
+@keyframes milestone-row-flash {
+  0%, 100% { color: var(--signal); background: transparent; filter: brightness(1); }
+  16%, 48%, 80% { color: #fff; background: rgba(207,255,56,.2); filter: brightness(1.8); }
+  32%, 64% { color: var(--signal); background: rgba(207,255,56,.04); filter: brightness(1); }
+}
+@keyframes error-row-flash {
+  0% { transform: translateX(0); opacity: 1; }
+  20% { transform: translateX(-8px); }
+  40% { transform: translateX(7px); }
+  60% { transform: translateX(-4px); }
+  100% { transform: translateX(0); opacity: .8; }
+}
+@keyframes reward-overlay {
+  0% { opacity: 0; transform: scale(.92); }
+  14% { opacity: 1; transform: scale(1.03); }
+  32% { transform: scale(1); }
+  72% { opacity: 1; }
+  100% { opacity: 0; transform: scale(1.02); }
+}
+@keyframes failure-overlay {
+  0% { opacity: 0; transform: scale(.84); }
+  14% { opacity: 1; transform: scale(1.04); }
+  30% { transform: scale(1); }
+  72% { opacity: 1; }
+  100% { opacity: 0; transform: scale(1); }
 }
 
 @media (max-width: 700px) {

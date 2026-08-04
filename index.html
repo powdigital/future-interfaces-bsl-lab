@@ -80,12 +80,17 @@
             <label class="import-training">Import training data<input id="import-training" type="file" accept="application/json" /></label>
           </div>
         </section>
+        <div class="chain-failure" id="chain-failure" role="alert" aria-hidden="true">
+          <span class="chain-failure-cross" aria-hidden="true">×</span>
+          <strong>Chain broken</strong>
+          <small id="chain-failure-copy">Start again at number 1</small>
+        </div>
       </section>
 
-      <aside class="gesture-rail" aria-label="Gesture placeholders">
+      <aside class="gesture-rail" aria-label="BSL number game">
         <div class="rail-heading">
           <span>BSL numbers</span>
-          <span>1–5 active</span>
+          <span>1–10 active</span>
         </div>
         <div class="chain-meter" id="chain-meter" aria-live="polite">
           <span>Chain</span>
@@ -97,13 +102,18 @@
           <li data-gesture="3" data-sign-id="bsl-number-3" role="button" tabindex="0" aria-label="Show help for BSL number 3"><span class="gesture-number">03</span><span>Number 3</span></li>
           <li data-gesture="4" data-sign-id="bsl-number-4" role="button" tabindex="0" aria-label="Show help for BSL number 4"><span class="gesture-number">04</span><span>Number 4</span></li>
           <li data-gesture="5" data-sign-id="bsl-number-5" role="button" tabindex="0" aria-label="Show help for BSL number 5"><span class="gesture-number">05</span><span>Number 5</span></li>
-          <li><span class="gesture-number">06</span><span>Number 6</span></li>
-          <li><span class="gesture-number">07</span><span>Number 7</span></li>
-          <li><span class="gesture-number">08</span><span>Number 8</span></li>
-          <li><span class="gesture-number">09</span><span>Number 9</span></li>
-          <li><span class="gesture-number">10</span><span>Number 10</span></li>
+          <li data-gesture="6" data-sign-id="bsl-number-6" role="button" tabindex="0" aria-label="Show help for BSL number 6"><span class="gesture-number">06</span><span>Number 6</span></li>
+          <li data-gesture="7" data-sign-id="bsl-number-7" role="button" tabindex="0" aria-label="Show help for BSL number 7"><span class="gesture-number">07</span><span>Number 7</span></li>
+          <li data-gesture="8" data-sign-id="bsl-number-8" role="button" tabindex="0" aria-label="Show help for BSL number 8"><span class="gesture-number">08</span><span>Number 8</span></li>
+          <li data-gesture="9" data-sign-id="bsl-number-9" role="button" tabindex="0" aria-label="Show help for BSL number 9"><span class="gesture-number">09</span><span>Number 9</span></li>
+          <li data-gesture="10" data-sign-id="bsl-number-10" role="button" tabindex="0" aria-label="Show help for BSL number 10"><span class="gesture-number">10</span><span>Number 10</span></li>
         </ol>
-        <p class="rail-note">Select 1–5 for sign help</p>
+        <p class="rail-note">Select any number for sign help</p>
+        <div class="chain-reward" id="chain-reward" role="status" aria-live="assertive" aria-hidden="true">
+          <span>Chain complete</span>
+          <strong>Well done</strong>
+          <small id="chain-reward-copy">Five numbers correct</small>
+        </div>
       </aside>
 
       <div class="gesture-response" id="gesture-response" aria-live="assertive" aria-hidden="true">

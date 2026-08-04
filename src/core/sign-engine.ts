@@ -155,3 +155,34 @@ export function recognizeSign(signBank: SignDefinition[], metrics: HandMetrics, 
   const match = best && best.score >= best.sign.minimumScore && margin >= best.sign.minimumMargin ? best : null;
   return { match, results, margin };
 }
+
+export function recognizeHands(signBank: SignDefinition[], hands: HandMetrics[], profiles = new Map<string, LearnedProfile>()): {
+  match: RecognitionCandidate | null;
+  results: RecognitionCandidate[];
+  margin: number;
+} {
+  if (!hands.length) return { match: null, results: [], margin: 0 };
+
+  const results = signBank
+    .filter((sign) => sign.recognitionType === "static" && hands.length >= sign.hands)
+    .map((sign) => {
+      if (sign.hands === 2) {
+        const score = hands
+          .slice(0, 2)
+          .map((metrics) => scoreSign(sign, metrics, profiles.get(sign.id)))
+          .reduce((sum, value) => sum + value, 0) / 2;
+        return { sign, score };
+      }
+
+      const bestHandScore = Math.max(...hands.map((metrics) => scoreSign(sign, metrics, profiles.get(sign.id))));
+      const extraHandPenalty = hands.length > 1 ? 0.65 : 1;
+      return { sign, score: bestHandScore * extraHandPenalty };
+    })
+    .sort((a, b) => b.score - a.score);
+
+  const best = results[0];
+  const runnerUp = results[1];
+  const margin = best ? best.score - (runnerUp?.score || 0) : 0;
+  const match = best && best.score >= best.sign.minimumScore && margin >= best.sign.minimumMargin ? best : null;
+  return { match, results, margin };
+}

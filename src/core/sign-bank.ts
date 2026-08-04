@@ -1,6 +1,6 @@
 import type { DigitState, SignDefinition, SignRule, TrainingPrompt } from "./types.ts";
 
-export const SIGN_BANK_VERSION = 1;
+export const SIGN_BANK_VERSION = 2;
 
 const correctPrompts: TrainingPrompt[] = [
   { id: "natural", title: "Natural position", instruction: "Make the sign naturally with your right hand facing the camera." },
@@ -35,17 +35,42 @@ const incorrectPrompts: Record<number, TrainingPrompt[]> = {
     { id: "number-4", title: "Neighboring number 4", instruction: "Fold the thumb across to sign number 4 clearly." },
     { id: "bent-thumb", title: "Partly open thumb", instruction: "Open all fingers but keep the thumb only halfway extended." },
     { id: "relaxed-open", title: "Relaxed open hand", instruction: "Show a relaxed, partly curled open hand rather than a clear 5." }
+  ],
+  6: [
+    { id: "number-5", title: "Neighboring number 5", instruction: "Sign number 5 clearly. It must not count as 6." },
+    { id: "number-7", title: "Neighboring number 7", instruction: "Sign number 7 clearly. It must not count as 6." },
+    { id: "bent-thumb", title: "Bent thumb", instruction: "Keep the fingers folded but leave the thumb only partly extended." }
+  ],
+  7: [
+    { id: "number-6", title: "Neighboring number 6", instruction: "Sign number 6 clearly. It must not count as 7." },
+    { id: "number-8", title: "Neighboring number 8", instruction: "Sign number 8 clearly. It must not count as 7." },
+    { id: "bent-index", title: "Bent index", instruction: "Extend the thumb but leave the index finger partly bent." }
+  ],
+  8: [
+    { id: "number-7", title: "Neighboring number 7", instruction: "Sign number 7 clearly. It must not count as 8." },
+    { id: "number-9", title: "Neighboring number 9", instruction: "Sign number 9 clearly. It must not count as 8." },
+    { id: "bent-middle", title: "Bent middle finger", instruction: "Extend the thumb and index but leave the middle finger partly bent." }
+  ],
+  9: [
+    { id: "number-8", title: "Neighboring number 8", instruction: "Sign number 8 clearly. It must not count as 9." },
+    { id: "number-10", title: "Neighboring number 10", instruction: "Sign number 10 clearly. It must not count as 9." },
+    { id: "bent-ring", title: "Bent ring finger", instruction: "Extend the thumb, index, and middle fingers but leave the ring finger partly bent." }
+  ],
+  10: [
+    { id: "number-9", title: "Neighboring number 9", instruction: "Sign number 9 clearly. It must not count as 10." },
+    { id: "number-5", title: "One open hand", instruction: "Show one open hand only. It must not count as 10." },
+    { id: "uneven-pair", title: "Uneven open pair", instruction: "Show two hands, but keep one hand partly folded." }
   ]
 };
 
-function number(value: number, statePattern: DigitState[], baseRules: SignRule[] = []): SignDefinition {
+function number(value: number, statePattern: DigitState[], baseRules: SignRule[] = [], hands: 1 | 2 = 1): SignDefinition {
   return {
     id: `bsl-number-${value}`,
     label: `Number ${value}`,
     shortLabel: String(value),
     category: "number",
     recognitionType: "static",
-    hands: 1,
+    hands,
     promptAsset: `/BSL_diagram_overlays/bsl${value}.png`,
     statePattern,
     baseRules,
@@ -79,7 +104,12 @@ export const SIGN_BANK: SignDefinition[] = [
   number(2, ["folded", "extended", "extended", "folded", "folded"]),
   number(3, ["folded", "extended", "extended", "extended", "folded"]),
   number(4, ["folded", "extended", "extended", "extended", "extended"]),
-  number(5, ["extended", "extended", "extended", "extended", "extended"])
+  number(5, ["extended", "extended", "extended", "extended", "extended"]),
+  number(6, ["extended", "folded", "folded", "folded", "folded"]),
+  number(7, ["extended", "extended", "folded", "folded", "folded"]),
+  number(8, ["extended", "extended", "extended", "folded", "folded"]),
+  number(9, ["extended", "extended", "extended", "extended", "folded"]),
+  number(10, ["extended", "extended", "extended", "extended", "extended"], [], 2)
 ];
 
 export function getSign(signId: string): SignDefinition | null {

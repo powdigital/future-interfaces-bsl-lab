@@ -5,7 +5,8 @@ import {
 import "./styles.css";
 import { DIGIT_STATE, getHandMetrics } from "./core/hand-metrics.ts";
 import { SIGN_BANK, getSign } from "./core/sign-bank.ts";
-import { buildLearnedProfile, recognizeSign } from "./core/sign-engine.ts";
+import { buildLearnedProfile, recognizeHands } from "./core/sign-engine.ts";
+import { createChainGame } from "./core/chain-game.ts";
 import { APP_VERSION, createSessionId, PRIMARY_RESEARCHER_ID } from "./core/research-profile.ts";
 import {
   addExample,
@@ -31,6 +32,10 @@ const gestureResponse = document.querySelector("#gesture-response");
 const responseImage = document.querySelector("#response-image");
 const chainMeter = document.querySelector("#chain-meter");
 const chainCountCopy = document.querySelector("#chain-count");
+const chainReward = document.querySelector("#chain-reward");
+const chainRewardCopy = document.querySelector("#chain-reward-copy");
+const chainFailure = document.querySelector("#chain-failure");
+const chainFailureCopy = document.querySelector("#chain-failure-copy");
 const diagnosticsToggle = document.querySelector("#diagnostics-toggle");
 const diagnosticsPanel = document.querySelector("#diagnostics-panel");
 const diagnosticsClose = document.querySelector("#diagnostics-close");
@@ -69,13 +74,15 @@ let lastTriggeredGesture = null;
 let lastTriggeredAt = 0;
 let audioContext;
 let responseTimer;
-let chainCount = 0;
+let rewardTimer;
+let failureTimer;
 let gestureHistory = [];
 let recordingSession = null;
 let selectedExamples = [];
 let guidedSession = null;
 const learnedProfiles = new Map();
 const researchSessionId = createSessionId();
+const chainGame = createChainGame();
 
 const FINGERTIPS = new Set([4, 8, 12, 16, 20]);
 const FINGER_LABELS = [
@@ -409,34 +416,107 @@ function animateGestureRow(signId) {
   row.classList.add("is-hit");
 }
 
-function updateChain(number) {
-  const expected = chainCount + 1;
-  if (number === expected) {
-    chainCount += 1;
-  } else {
-    chainCount = number === 1 ? 1 : 0;
-  }
-
-  chainCountCopy.textContent = String(chainCount).padStart(2, "0");
-  chainMeter.classList.toggle("is-chaining", chainCount > 1);
+function renderChainState(gameState) {
+  chainCountCopy.textContent = String(gameState.progress).padStart(2, "0");
+  chainMeter.classList.toggle("is-chaining", gameState.progress > 1);
   document.querySelectorAll("#gesture-list li[data-gesture]").forEach((item) => {
-    item.classList.toggle("is-complete", Number(item.dataset.gesture) <= chainCount);
+    item.classList.toggle("is-complete", Number(item.dataset.gesture) <= gameState.progress);
   });
+}
+
+function showChainReward(numbers) {
+  clearTimeout(rewardTimer);
+  const first = numbers[0];
+  const last = numbers[numbers.length - 1];
+  chainRewardCopy.textContent = `Numbers ${first} to ${last} chained`;
+  document.querySelectorAll("#gesture-list li[data-gesture]").forEach((item) => {
+    item.classList.toggle("is-milestone-flash", numbers.includes(Number(item.dataset.gesture)));
+  });
+  chainReward.setAttribute("aria-hidden", "false");
+  chainReward.classList.remove("is-showing");
+  void chainReward.offsetWidth;
+  chainReward.classList.add("is-showing");
+  rewardTimer = setTimeout(() => {
+    chainReward.classList.remove("is-showing");
+    chainReward.setAttribute("aria-hidden", "true");
+    document.querySelectorAll("#gesture-list li.is-milestone-flash").forEach((item) => {
+      item.classList.remove("is-milestone-flash");
+    });
+  }, 1450);
+}
+
+function playFailureTone() {
+  audioContext ||= new AudioContext();
+  if (audioContext.state === "suspended") audioContext.resume();
+  const oscillator = audioContext.createOscillator();
+  const gain = audioContext.createGain();
+  oscillator.type = "square";
+  oscillator.frequency.setValueAtTime(180, audioContext.currentTime);
+  oscillator.frequency.exponentialRampToValueAtTime(95, audioContext.currentTime + 0.22);
+  gain.gain.setValueAtTime(0.0001, audioContext.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.1, audioContext.currentTime + 0.012);
+  gain.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + 0.3);
+  oscillator.connect(gain).connect(audioContext.destination);
+  oscillator.start();
+  oscillator.stop(audioContext.currentTime + 0.31);
+}
+
+function showChainFailure(result) {
+  clearTimeout(failureTimer);
+  clearTimeout(rewardTimer);
+  clearTimeout(responseTimer);
+  chainReward.classList.remove("is-showing");
+  chainReward.setAttribute("aria-hidden", "true");
+  document.querySelectorAll("#gesture-list li.is-milestone-flash").forEach((item) => {
+    item.classList.remove("is-milestone-flash");
+  });
+  gestureResponse.classList.remove("is-pinging");
+  gestureResponse.setAttribute("aria-hidden", "true");
+  chainFailureCopy.textContent = result.state.progress === 5
+    ? "Second chain reset to checkpoint 5"
+    : "First chain reset. Start again at number 1";
+  chainFailure.setAttribute("aria-hidden", "false");
+  chainFailure.classList.remove("is-showing");
+  void chainFailure.offsetWidth;
+  chainFailure.classList.add("is-showing");
+  const wrongRow = document.querySelector(`#gesture-list li[data-gesture="${result.received}"]`);
+  if (wrongRow) {
+    wrongRow.classList.remove("is-error-hit");
+    void wrongRow.offsetWidth;
+    wrongRow.classList.add("is-error-hit");
+  }
+  playFailureTone();
+  failureTimer = setTimeout(() => {
+    chainFailure.classList.remove("is-showing");
+    chainFailure.setAttribute("aria-hidden", "true");
+    wrongRow?.classList.remove("is-error-hit");
+  }, 1000);
 }
 
 function showGestureResponse(signId, award = false) {
   const sign = getSign(signId);
   if (!sign) return;
+  const gameResult = award && sign.category === "number"
+    ? chainGame.submit(Number(sign.shortLabel))
+    : null;
+  if (gameResult) {
+    renderChainState(gameResult.state);
+    if (gameResult.type === "failed") {
+      showChainFailure(gameResult);
+      return;
+    }
+  }
   clearTimeout(responseTimer);
   responseImage.src = sign.promptAsset;
   responseImage.alt = `BSL ${sign.label}`;
+  responseImage.classList.toggle("is-inverted", sign.id === "bsl-number-6");
   gestureResponse.setAttribute("aria-hidden", "false");
   gestureResponse.classList.remove("is-pinging");
   void gestureResponse.offsetWidth;
   gestureResponse.classList.add("is-pinging");
   animateGestureRow(signId);
-  if (award && sign.category === "number") updateChain(Number(sign.shortLabel));
   playPing();
+  if (gameResult?.type === "accepted" && gameResult.milestone) showChainReward(gameResult.milestone);
   responseTimer = setTimeout(() => {
     gestureResponse.classList.remove("is-pinging");
     gestureResponse.setAttribute("aria-hidden", "true");
@@ -632,8 +712,8 @@ function track(now) {
     const hands = results.landmarks || [];
     if (hands.length) lastDetectedHands = hands;
     if (!recordingSession) {
-      const metrics = hands.length ? getHandMetrics(hands[0]) : null;
-      const recognition = metrics ? recognizeSign(SIGN_BANK, metrics, learnedProfiles) : null;
+      const handMetrics = hands.map((landmarks) => getHandMetrics(landmarks));
+      const recognition = handMetrics.length ? recognizeHands(SIGN_BANK, handMetrics, learnedProfiles) : null;
       updateGestureRecognition(recognition?.match?.sign.id || null, now);
     }
     updateDiagnostics(hands[0] || null, now);
@@ -720,7 +800,10 @@ importTrainingInput.addEventListener("change", async () => {
 window.addEventListener("pagehide", () => stream?.getTracks().forEach((track) => track.stop()));
 
 async function initializeTrainingDatabase() {
-  calibrationSignSelect.innerHTML = SIGN_BANK.map((sign) => `<option value="${sign.id}">${sign.label}</option>`).join("");
+  calibrationSignSelect.innerHTML = SIGN_BANK
+    .filter((sign) => sign.hands === 1)
+    .map((sign) => `<option value="${sign.id}">${sign.label}</option>`)
+    .join("");
   try {
     (await getAllProfiles()).forEach((profile) => learnedProfiles.set(profile.signId, profile));
     await rebuildStoredProfiles();
