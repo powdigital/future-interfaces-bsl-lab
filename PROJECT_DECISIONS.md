@@ -70,3 +70,7 @@ Each learned profile now derives both continuous geometry rules and a five-digit
 A provisional profile continues to blend learned evidence with the seeded definition. After five correct clips and three incorrect clips, the profile becomes established and learned evidence becomes authoritative for that researcher. This lets training correct a mistaken seed automatically while preventing a single accidental recording from replacing the rule.
 
 Number 9 provided the first correction. The recorded pattern is an ambiguous thumb with strongly negative reach and four extended fingers. Number 4 is its most important negative neighbor because its four fingers are also extended but its thumb occupies a different range.
+
+Established profiles use a guarded decision rule. Positive evidence can override an incorrect provisional seed, and negative evidence can veto a known false match. When learned ranges are simply uncertain about a natural variation, the valid seed remains available as a fallback instead of being blocked.
+
+Diagnostics displays the selected sign score, required threshold, current top candidate, and recognition margin live. This makes recognition failures inspectable during local training without exporting screenshots.

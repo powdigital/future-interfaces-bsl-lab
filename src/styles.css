@@ -97,6 +97,15 @@ h1 span { color: rgba(255, 122, 0, 0.55); font-weight: 400; }
 .diagnostics-panel th, .diagnostics-panel td { padding: 8px 7px; border-bottom: 1px solid var(--line); text-align: right; font-size: 10px; }
 .diagnostics-panel th { color: #555; text-transform: uppercase; letter-spacing: .08em; font-weight: 400; }
 .diagnostics-panel th:first-child, .diagnostics-panel td:first-child, .diagnostics-panel th:nth-child(2), .diagnostics-panel td:nth-child(2) { text-align: left; }
+.recognition-diagnostic { display: grid; gap: 4px; margin-top: 10px; padding: 9px 10px; border-left: 2px solid #555; background: rgba(255,255,255,.025); color: #777; font-size: 9px; line-height: 1.35; }
+.recognition-diagnostic strong { color: #aaa; font-weight: 400; text-transform: uppercase; letter-spacing: .08em; }
+.recognition-diagnostic span { display: block; }
+.recognition-diagnostic.is-match { border-color: var(--signal); color: #aaa; }
+.recognition-diagnostic.is-match strong { color: var(--signal); }
+.recognition-diagnostic.is-other { border-color: #ff4040; }
+.recognition-diagnostic.is-other strong { color: #ff6969; }
+.recognition-diagnostic.is-uncertain { border-color: #ff7a00; }
+.recognition-diagnostic.is-uncertain strong { color: #ff7a00; }
 .digit-state { text-transform: uppercase; letter-spacing: .07em; }
 .digit-state.extended { color: var(--signal); }
 .digit-state.folded { color: #777; }

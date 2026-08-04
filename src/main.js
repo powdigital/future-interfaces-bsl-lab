@@ -40,6 +40,7 @@ const diagnosticsToggle = document.querySelector("#diagnostics-toggle");
 const diagnosticsPanel = document.querySelector("#diagnostics-panel");
 const diagnosticsClose = document.querySelector("#diagnostics-close");
 const diagnosticsBody = document.querySelector("#diagnostics-body");
+const recognitionDiagnostic = document.querySelector("#recognition-diagnostic");
 const recordingStatus = document.querySelector("#recording-status");
 const recordingProgressBar = document.querySelector("#recording-progress-bar");
 const calibrationReport = document.querySelector("#calibration-report");
@@ -110,6 +111,31 @@ function renderDiagnostics(metrics) {
       <td>${digit.reach.toFixed(2)}</td>
     </tr>
   `).join("");
+}
+
+function renderRecognitionDiagnostic(recognition) {
+  if (!recognition?.results?.length) {
+    recognitionDiagnostic.className = "recognition-diagnostic";
+    recognitionDiagnostic.textContent = "Show a hand to inspect the selected sign's live score.";
+    return;
+  }
+
+  const selectedSignId = calibrationSignSelect.value;
+  const selected = recognition.results.find((candidate) => candidate.sign.id === selectedSignId);
+  const top = recognition.results[0];
+  const match = recognition.match;
+  const selectedScore = selected ? Math.round(selected.score * 100) : 0;
+  const selectedMinimum = selected ? Math.round(selected.sign.minimumScore * 100) : 0;
+  const margin = Math.round(recognition.margin * 100);
+  const state = match?.sign.id === selectedSignId ? "is-match" : match ? "is-other" : "is-uncertain";
+  const resultCopy = match ? `Recognized ${match.sign.label}` : "No confident match";
+
+  recognitionDiagnostic.className = `recognition-diagnostic ${state}`;
+  recognitionDiagnostic.innerHTML = `
+    <strong>${resultCopy}</strong>
+    <span>Selected ${selected?.sign.label || "sign"}: ${selectedScore}% · target ${selectedMinimum}%</span>
+    <span>Top candidate: ${top.sign.label} ${Math.round(top.score * 100)}% · margin ${margin}%</span>
+  `;
 }
 
 function median(values) {
@@ -722,6 +748,7 @@ function track(now) {
       const handMetrics = hands.map((landmarks) => getHandMetrics(landmarks));
       const recognition = handMetrics.length ? recognizeHands(SIGN_BANK, handMetrics, learnedProfiles) : null;
       updateGestureRecognition(recognition?.match?.sign.id || null, now);
+      if (!diagnosticsPanel.hidden) renderRecognitionDiagnostic(recognition);
     }
     updateDiagnostics(hands[0] || null, now);
     handCountCopy.textContent = `${hands.length} ${hands.length === 1 ? "HAND" : "HANDS"}`;

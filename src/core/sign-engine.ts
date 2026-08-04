@@ -178,13 +178,18 @@ export function scoreSign(sign: SignDefinition, metrics: HandMetrics, profile?: 
   const learnedScore = negativeScore === null
     ? positiveScore || 0
     : clamp(0.5 + ((positiveScore || 0) - negativeScore) * 0.5, 0, 1);
-  const evidenceWeight = profile.schemaVersion >= 3 && profile.evidence.maturity === "established"
-    ? 1
-    : clamp(
-      profile.evidence.positiveClips / 5 * 0.5 + profile.evidence.negativeClips / 3 * 0.3,
-      0.2,
-      0.8
-    );
+  if (profile.schemaVersion >= 3 && profile.evidence.maturity === "established") {
+    const negativeVeto = negativeScore !== null && negativeScore > positiveScore;
+    return negativeVeto
+      ? Math.min(baseScore, learnedScore)
+      : Math.max(baseScore, learnedScore);
+  }
+
+  const evidenceWeight = clamp(
+    profile.evidence.positiveClips / 5 * 0.5 + profile.evidence.negativeClips / 3 * 0.3,
+    0.2,
+    0.8
+  );
   return baseScore * (1 - evidenceWeight) + learnedScore * evidenceWeight;
 }
 

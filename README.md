@@ -35,4 +35,6 @@ Guided training is the primary evidence workflow. Choose a number and complete f
 
 Training derives a learned finger-state pattern as well as continuous geometry ranges. Once five correct and three incorrect clips have established a profile, that local evidence overrides a conflicting provisional seed automatically. The Diagnostics report shows the learned state and confidence for every finger.
 
+Established profiles retain the seeded definition as a fallback for valid natural variations outside narrow learned ranges, while trained negative evidence can still veto known false matches. Diagnostics also shows live selected-sign, top-candidate, threshold, and margin scores.
+
 The current number library contains help overlays for 1 to 10. Numbers 1 to 9 can be trained as one-hand signs. Number 10 currently uses a provisional two-open-hand rule and is not included in calibration until the evidence format supports paired hands.

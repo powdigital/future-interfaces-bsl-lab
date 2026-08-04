@@ -53,6 +53,14 @@ const bslFourNeighbor: HandMetrics = [
   { state: "extended", angle1: 171, angle2: 176, straightness: 0.97, reach: 1.27 }
 ];
 
+const bslNineNaturalVariation: HandMetrics = [
+  { state: "folded", angle1: 139, angle2: 158, straightness: 0.89, reach: -0.4 },
+  { state: "extended", angle1: 169, angle2: 174, straightness: 0.97, reach: 1.34 },
+  { state: "extended", angle1: 168, angle2: 174, straightness: 0.97, reach: 1.37 },
+  { state: "extended", angle1: 166, angle2: 173, straightness: 0.96, reach: 1.33 },
+  { state: "extended", angle1: 164, angle2: 172, straightness: 0.95, reach: 1.24 }
+];
+
 const foldedDigit = { state: "folded" as const, angle1: 70, angle2: 90, straightness: 0.5, reach: 0.75 };
 const extendedDigit = { state: "extended" as const, angle1: 170, angle2: 175, straightness: 0.98, reach: 1.25 };
 const ambiguousDigit = { state: "ambiguous" as const, angle1: 135, angle2: 140, straightness: 0.75, reach: 1 };
@@ -161,8 +169,10 @@ describe("learned profiles", () => {
     ];
     const profile = buildLearnedProfile("bsl-number-1", examples);
     const profiles = new Map(profile ? [[profile.signId, profile]] : []);
+    const seededOne = SIGN_BANK.find((sign) => sign.id === "bsl-number-1");
     expect(recognizeSign(SIGN_BANK, bslOne, profiles).match?.sign.id).toBe("bsl-number-1");
     expect(recognizeSign(SIGN_BANK, thumbOutOne, profiles).match?.sign.id).toBe("bsl-number-7");
+    expect(seededOne && profile ? scoreSign(seededOne, thumbOutOne, profile) : 1).toBeLessThan(0.76);
   });
 
   it("lets established training override an incorrect provisional pattern", () => {
@@ -197,6 +207,7 @@ describe("learned profiles", () => {
       statePattern: ["extended", "extended", "extended", "extended", "folded"],
       baseRules: []
     }, bslNineFromCalibration, profile) : 0).toBeGreaterThan(0.9);
+    expect(seededNine && profile ? scoreSign(seededNine, bslNineNaturalVariation, profile) : 0).toBeGreaterThan(0.82);
   });
 });
 
