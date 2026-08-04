@@ -62,3 +62,11 @@ The first number game uses two replaceable five-number stages: 1 to 5 and 6 to 1
 A confidently recognized wrong number breaks only the current five-number stage. A mistake during 1 to 5 resets progress to zero. A mistake during 6 to 10 returns progress to checkpoint 5. The rules live in `src/core/chain-game.ts`, independently from recognition and interface animation, so a later difficulty mode can replace them.
 
 Numbers 6 to 9 begin as provisional one-hand patterns and are available to the existing evidence workflow. Number 10 is provisionally recognized from two open hands. Two-hand calibration needs its own evidence schema before it is added to guided training.
+
+## 2026-08-04: Established training overrides provisional seeds
+
+Each learned profile now derives both continuous geometry rules and a five-digit state pattern from its correct examples. The calibration report displays the resulting state and confidence for every digit.
+
+A provisional profile continues to blend learned evidence with the seeded definition. After five correct clips and three incorrect clips, the profile becomes established and learned evidence becomes authoritative for that researcher. This lets training correct a mistaken seed automatically while preventing a single accidental recording from replacing the rule.
+
+Number 9 provided the first correction. The recorded pattern is an ambiguous thumb with strongly negative reach and four extended fingers. Number 4 is its most important negative neighbor because its four fingers are also extended but its thumb occupies a different range.

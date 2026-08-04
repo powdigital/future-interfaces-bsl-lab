@@ -83,7 +83,7 @@ export interface ResearcherProfile {
 
 export interface LearnedProfile {
   signId: string;
-  schemaVersion: 2;
+  schemaVersion: 2 | 3;
   updatedAt: string;
   evidence: {
     positiveClips: number;
@@ -92,6 +92,8 @@ export interface LearnedProfile {
     negativeFrames: number;
     maturity: "provisional" | "established";
   };
+  learnedStatePattern?: DigitState[];
+  stateConfidence?: number[];
   rules: SignRule[];
 }
 

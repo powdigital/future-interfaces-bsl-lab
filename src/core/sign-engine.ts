@@ -1,4 +1,4 @@
-import type { DigitMetrics, HandMetrics, LearnedProfile, RecognitionCandidate, SignDefinition, SignRule, TrainingExample } from "./types.ts";
+import type { DigitMetrics, DigitState, HandMetrics, LearnedProfile, RecognitionCandidate, SignDefinition, SignRule, TrainingExample } from "./types.ts";
 
 const DIGIT_NAMES = ["thumb", "index", "middle", "ring", "pinky"] as const;
 const METRIC_NAMES = ["angle1", "angle2", "straightness", "reach"] as const;
@@ -37,9 +37,24 @@ function featureScale(feature: string): number {
 export function buildLearnedProfile(signId: string, examples: TrainingExample[]): LearnedProfile | null {
   const positives = examples.filter((example) => example.kind === "positive");
   const negatives = examples.filter((example) => example.kind === "negative");
-  const positiveFrames = positives.flatMap((example) => example.frames).map(flattenMetrics);
+  const positiveMetricFrames = positives.flatMap((example) => example.frames);
+  const positiveFrames = positiveMetricFrames.map(flattenMetrics);
   const negativeFrames = negatives.flatMap((example) => example.frames).map(flattenMetrics);
   if (!positiveFrames.length) return null;
+
+  const stateEvidence = Array.from({ length: 5 }, (_, digitIndex) => {
+    const counts = new Map<DigitState, number>([
+      ["ambiguous", 0],
+      ["extended", 0],
+      ["folded", 0]
+    ]);
+    positiveMetricFrames.forEach((frame) => {
+      const state = frame[digitIndex]?.state;
+      if (state) counts.set(state, (counts.get(state) || 0) + 1);
+    });
+    const [state, count] = [...counts.entries()].sort((a, b) => b[1] - a[1])[0];
+    return { state, confidence: count / positiveMetricFrames.length };
+  });
 
   const candidateRules: SignRule[] = Object.keys(positiveFrames[0]).map((feature) => {
     const positiveValues = positiveFrames.map((frame) => frame[feature]).filter(Number.isFinite);
@@ -75,7 +90,7 @@ export function buildLearnedProfile(signId: string, examples: TrainingExample[])
 
   return {
     signId,
-    schemaVersion: 2,
+    schemaVersion: 3,
     updatedAt: new Date().toISOString(),
     evidence: {
       positiveClips: positives.length,
@@ -84,6 +99,8 @@ export function buildLearnedProfile(signId: string, examples: TrainingExample[])
       negativeFrames: negativeFrames.length,
       maturity: positives.length >= 5 && negatives.length >= 3 ? "established" : "provisional"
     },
+    learnedStatePattern: stateEvidence.map((evidence) => evidence.state),
+    stateConfidence: stateEvidence.map((evidence) => evidence.confidence),
     rules
   };
 }
@@ -123,7 +140,7 @@ function ambiguousExtensionConfidence(digit: DigitMetrics, digitIndex: number): 
   return angle1 * 0.35 + angle2 * 0.1 + straightness * 0.25 + reach * 0.3;
 }
 
-function statePatternScore(metrics: HandMetrics, pattern: SignDefinition["statePattern"]): number {
+function statePatternScore(metrics: HandMetrics, pattern: SignDefinition["statePattern"], confidence?: number[]): number {
   const scores: number[] = pattern.map((expected, index): number => {
     const digit = metrics[index];
     const actual = digit?.state;
@@ -135,7 +152,9 @@ function statePatternScore(metrics: HandMetrics, pattern: SignDefinition["stateP
     }
     return 0;
   });
-  return scores.reduce((sum, value) => sum + value, 0) / scores.length;
+  const weights = scores.map((_, index) => clamp(confidence?.[index] ?? 1, 0.25, 1));
+  const totalWeight = weights.reduce((sum, value) => sum + value, 0);
+  return scores.reduce((sum, value, index) => sum + value * weights[index], 0) / totalWeight;
 }
 
 export function scoreSign(sign: SignDefinition, metrics: HandMetrics, profile?: LearnedProfile): number {
@@ -145,7 +164,13 @@ export function scoreSign(sign: SignDefinition, metrics: HandMetrics, profile?: 
   const baseScore = baseRulesScore === null ? patternScore : (baseRulesScore + patternScore) / 2;
   if (!profile) return baseScore;
 
-  const positiveScore = rulesScore(features, profile.rules);
+  const positiveRulesScore = rulesScore(features, profile.rules);
+  const learnedPatternScore = profile.learnedStatePattern?.length === 5
+    ? statePatternScore(metrics, profile.learnedStatePattern, profile.stateConfidence)
+    : patternScore;
+  const positiveScore = positiveRulesScore === null
+    ? learnedPatternScore
+    : positiveRulesScore * 0.75 + learnedPatternScore * 0.25;
   const negativeRules = profile.rules
     .filter((rule) => rule.negativeMin !== null && rule.negativeMax !== null)
     .map((rule) => ({ ...rule, min: rule.negativeMin as number, max: rule.negativeMax as number }));
@@ -153,11 +178,13 @@ export function scoreSign(sign: SignDefinition, metrics: HandMetrics, profile?: 
   const learnedScore = negativeScore === null
     ? positiveScore || 0
     : clamp(0.5 + ((positiveScore || 0) - negativeScore) * 0.5, 0, 1);
-  const evidenceWeight = clamp(
-    profile.evidence.positiveClips / 5 * 0.5 + profile.evidence.negativeClips / 3 * 0.3,
-    0.2,
-    0.8
-  );
+  const evidenceWeight = profile.schemaVersion >= 3 && profile.evidence.maturity === "established"
+    ? 1
+    : clamp(
+      profile.evidence.positiveClips / 5 * 0.5 + profile.evidence.negativeClips / 3 * 0.3,
+      0.2,
+      0.8
+    );
   return baseScore * (1 - evidenceWeight) + learnedScore * evidenceWeight;
 }
 

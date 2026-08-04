@@ -166,7 +166,7 @@ function renderCalibrationReport() {
   const profile = learnedProfiles.get(sign.id);
 
   if (!positiveFrames.length && !negativeFrames.length) {
-    calibrationReport.innerHTML = `<strong>${sign.label}</strong><br>No training examples yet. Add at least three correct and two incorrect examples.`;
+    calibrationReport.innerHTML = `<strong>${sign.label}</strong><br>No training examples yet. Add five correct and three incorrect examples.`;
     return;
   }
 
@@ -200,12 +200,19 @@ function renderCalibrationReport() {
   const topRules = profile?.rules?.slice(0, 5).map((rule) =>
     `${rule.feature}: ${rule.min.toFixed(2)} to ${rule.max.toFixed(2)} · weight ${rule.weight.toFixed(1)}`
   ).join("<br>") || "A learned profile is created after the first correct example.";
+  const learnedPattern = profile?.learnedStatePattern?.map((state, index) => {
+    const digit = ["T", "I", "M", "R", "P"][index];
+    const confidence = Math.round((profile.stateConfidence?.[index] || 0) * 100);
+    return `${digit} ${state.toUpperCase()} ${confidence}%`;
+  }).join(" · ") || "Waiting for correct examples.";
   const maturity = profile?.evidence?.maturity || "untrained";
 
   calibrationReport.innerHTML = `
     <strong>${sign.label} evidence · ${maturity}</strong><br>
     Correct clips: ${positiveExamples.length} · ${positiveFrames.length} frames<br>
     Incorrect clips: ${negativeExamples.length} · ${negativeFrames.length} frames<br><br>
+    <strong>Learned finger pattern</strong><br>${learnedPattern}
+    <br><br>
     <strong>Largest measured differences</strong><br>${comparison}
     <br><br><strong>Highest-weight learned rules</strong><br>${topRules}
     ${buildRangeTable(`${sign.label} correct`, positiveFrames)}

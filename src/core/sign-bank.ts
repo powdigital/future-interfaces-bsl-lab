@@ -53,8 +53,8 @@ const incorrectPrompts: Record<number, TrainingPrompt[]> = {
   ],
   9: [
     { id: "number-8", title: "Neighboring number 8", instruction: "Sign number 8 clearly. It must not count as 9." },
-    { id: "number-10", title: "Neighboring number 10", instruction: "Sign number 10 clearly. It must not count as 9." },
-    { id: "bent-ring", title: "Bent ring finger", instruction: "Extend the thumb, index, and middle fingers but leave the ring finger partly bent." }
+    { id: "number-4", title: "Neighboring number 4", instruction: "Sign number 4 clearly. Its thumb position must distinguish it from 9." },
+    { id: "number-5", title: "Neighboring number 5", instruction: "Sign number 5 clearly. Its open thumb must not count as 9." }
   ],
   10: [
     { id: "number-9", title: "Neighboring number 9", instruction: "Sign number 9 clearly. It must not count as 10." },
@@ -103,12 +103,16 @@ export const SIGN_BANK: SignDefinition[] = [
   ]),
   number(2, ["folded", "extended", "extended", "folded", "folded"]),
   number(3, ["folded", "extended", "extended", "extended", "folded"]),
-  number(4, ["folded", "extended", "extended", "extended", "extended"]),
+  number(4, ["folded", "extended", "extended", "extended", "extended"], [
+    { feature: "thumb.reach", min: -0.35, max: 0.35, weight: 4, foundation: false }
+  ]),
   number(5, ["extended", "extended", "extended", "extended", "extended"]),
   number(6, ["extended", "folded", "folded", "folded", "folded"]),
   number(7, ["extended", "extended", "folded", "folded", "folded"]),
   number(8, ["extended", "extended", "extended", "folded", "folded"]),
-  number(9, ["extended", "extended", "extended", "extended", "folded"]),
+  number(9, ["ambiguous", "extended", "extended", "extended", "extended"], [
+    { feature: "thumb.reach", min: -0.8, max: -0.35, weight: 5, foundation: false }
+  ]),
   number(10, ["extended", "extended", "extended", "extended", "extended"], [], 2)
 ];
 

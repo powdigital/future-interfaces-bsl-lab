@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { SIGN_BANK } from "../src/core/sign-bank.ts";
-import { buildLearnedProfile, recognizeHands, recognizeSign } from "../src/core/sign-engine.ts";
+import { buildLearnedProfile, recognizeHands, recognizeSign, scoreSign } from "../src/core/sign-engine.ts";
 import type { HandMetrics, TrainingExample } from "../src/core/types.ts";
 import { createDefaultResearcherProfile } from "../src/core/research-profile.ts";
 import { assertEvidencePolicy, EVIDENCE_POLICY } from "../src/core/evidence-policy.ts";
@@ -37,12 +37,20 @@ const openHand: HandMetrics = [
   { state: "extended", angle1: 171, angle2: 174, straightness: 0.97, reach: 1.18 }
 ];
 
-const bslNineWithBorderlineRing: HandMetrics = [
-  { state: "extended", angle1: 164, angle2: 171, straightness: 0.96, reach: 0.36 },
-  { state: "extended", angle1: 174, angle2: 177, straightness: 0.99, reach: 1.3 },
-  { state: "extended", angle1: 171, angle2: 175, straightness: 0.98, reach: 1.24 },
-  { state: "ambiguous", angle1: 141, angle2: 158, straightness: 0.88, reach: 1.1 },
-  { state: "folded", angle1: 72, angle2: 112, straightness: 0.56, reach: 0.78 }
+const bslNineFromCalibration: HandMetrics = [
+  { state: "ambiguous", angle1: 159, angle2: 177, straightness: 0.99, reach: -0.56 },
+  { state: "extended", angle1: 177, angle2: 178, straightness: 1, reach: 1.41 },
+  { state: "extended", angle1: 176, angle2: 178, straightness: 1, reach: 1.45 },
+  { state: "extended", angle1: 177, angle2: 179, straightness: 1, reach: 1.42 },
+  { state: "extended", angle1: 176, angle2: 179, straightness: 1, reach: 1.35 }
+];
+
+const bslFourNeighbor: HandMetrics = [
+  { state: "folded", angle1: 95, angle2: 118, straightness: 0.68, reach: 0.04 },
+  { state: "extended", angle1: 174, angle2: 178, straightness: 0.99, reach: 1.36 },
+  { state: "extended", angle1: 174, angle2: 178, straightness: 0.99, reach: 1.4 },
+  { state: "extended", angle1: 173, angle2: 177, straightness: 0.98, reach: 1.35 },
+  { state: "extended", angle1: 171, angle2: 176, straightness: 0.97, reach: 1.27 }
 ];
 
 const foldedDigit = { state: "folded" as const, angle1: 70, angle2: 90, straightness: 0.5, reach: 0.75 };
@@ -73,8 +81,7 @@ describe("seeded BSL number recognition", () => {
   it.each([
     [6, ["extended", "folded", "folded", "folded", "folded"]],
     [7, ["extended", "extended", "folded", "folded", "folded"]],
-    [8, ["extended", "extended", "extended", "folded", "folded"]],
-    [9, ["extended", "extended", "extended", "extended", "folded"]]
+    [8, ["extended", "extended", "extended", "folded", "folded"]]
   ] as const)("recognises the provisional state pattern for number %i", (number, states) => {
     expect(recognizeSign(SIGN_BANK, metricsFor([...states])).match?.sign.id).toBe(`bsl-number-${number}`);
   });
@@ -83,8 +90,9 @@ describe("seeded BSL number recognition", () => {
     expect(recognizeHands(SIGN_BANK, [openHand, openHand]).match?.sign.id).toBe("bsl-number-10");
   });
 
-  it("recognises Number 9 when its ring finger is nearly straight but still labelled ambiguous", () => {
-    expect(recognizeSign(SIGN_BANK, bslNineWithBorderlineRing).match?.sign.id).toBe("bsl-number-9");
+  it("recognises the captured Number 9 geometry and separates it from Number 4", () => {
+    expect(recognizeSign(SIGN_BANK, bslNineFromCalibration).match?.sign.id).toBe("bsl-number-9");
+    expect(recognizeSign(SIGN_BANK, bslFourNeighbor).match?.sign.id).toBe("bsl-number-4");
   });
 });
 
@@ -123,6 +131,8 @@ describe("learned profiles", () => {
     ];
     const profile = buildLearnedProfile("bsl-number-1", examples);
     expect(profile?.evidence.maturity).toBe("established");
+    expect(profile?.schemaVersion).toBe(3);
+    expect(profile?.learnedStatePattern).toEqual(["ambiguous", "extended", "folded", "folded", "folded"]);
     expect(profile?.rules.length).toBeGreaterThan(0);
     expect(profile?.rules.every((rule) => rule.foundation === false)).toBe(true);
     expect(profile?.rules.some((rule) => rule.negativeMedian !== null)).toBe(true);
@@ -153,6 +163,40 @@ describe("learned profiles", () => {
     const profiles = new Map(profile ? [[profile.signId, profile]] : []);
     expect(recognizeSign(SIGN_BANK, bslOne, profiles).match?.sign.id).toBe("bsl-number-1");
     expect(recognizeSign(SIGN_BANK, thumbOutOne, profiles).match?.sign.id).toBe("bsl-number-7");
+  });
+
+  it("lets established training override an incorrect provisional pattern", () => {
+    const examples: TrainingExample[] = [
+      ...Array.from({ length: 5 }, (_, index) => ({
+        signId: "bsl-number-9",
+        kind: "positive" as const,
+        recordedAt: `2026-08-04T12:00:0${index}.000Z`,
+        frames: [bslNineFromCalibration],
+        evidenceFormat: "hand-landmarks-and-metrics-v1" as const,
+        containsVideo: false as const,
+        containsAudio: false as const
+      })),
+      ...Array.from({ length: 3 }, (_, index) => ({
+        signId: "bsl-number-9",
+        kind: "negative" as const,
+        recordedAt: `2026-08-04T12:01:0${index}.000Z`,
+        frames: [bslFourNeighbor],
+        evidenceFormat: "hand-landmarks-and-metrics-v1" as const,
+        containsVideo: false as const,
+        containsAudio: false as const
+      }))
+    ];
+    const profile = buildLearnedProfile("bsl-number-9", examples);
+    const seededNine = SIGN_BANK.find((sign) => sign.id === "bsl-number-9");
+
+    expect(profile?.learnedStatePattern).toEqual(["ambiguous", "extended", "extended", "extended", "extended"]);
+    expect(profile?.stateConfidence).toEqual([1, 1, 1, 1, 1]);
+    expect(profile?.evidence.maturity).toBe("established");
+    expect(seededNine && profile ? scoreSign({
+      ...seededNine,
+      statePattern: ["extended", "extended", "extended", "extended", "folded"],
+      baseRules: []
+    }, bslNineFromCalibration, profile) : 0).toBeGreaterThan(0.9);
   });
 });
 
