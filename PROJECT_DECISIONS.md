@@ -87,8 +87,14 @@ Orientation is derived from the landmarks already stored with every recording. I
 
 Numbers 11 to 20 are temporal signs. They must not be reduced to a static frame or triggered by an intermediate pose. Every definition represents one complete movement with a start phase, one motion cycle, and a settled completion phase.
 
-Number 11 is the first active motion recognizer. It requires an open thumb and index, one close into the pinch, and one release. The detector uses thumb-to-index distance normalized by palm width, a bounded duration, a whole-hand drift limit, and a cooldown that prevents one movement from being counted twice.
+Number 11 is the first active motion recognizer. It requires an open thumb and index followed by one close into the pinch. Recognition happens at closure. The release resets the detector for a later attempt but is not part of the recognized motion. The detector uses thumb-to-index distance normalized by palm width, a bounded duration, a whole-hand drift limit, and a cooldown that prevents one movement from being counted twice.
 
 Numbers 12 to 20 are present in the sign bank and help rail but remain marked as training required. Their detector families are registered as horizontal, vertical, pinch, or two-hand movement. They will only become active after each sign has positive speed and distance variations, incomplete-motion negatives, repeated-motion negatives, neighboring-sign negatives, and held-out validation.
 
 Static pose profiles and temporal motion profiles remain separate evidence types. Existing static training must not silently create a motion rule. A later motion database schema will store timestamped landmark sequences and phase boundaries while preserving the no-video policy.
+
+## 2026-08-05: Recognition feedback does not depend on game order
+
+The recognizer and the game are separate concerns. A valid recognition must always display its sign response even when it is not the next number in an optional sequence.
+
+The default interface uses free-practice scoring. Any confidently recognized active number adds one successful recognition, and rewards appear every five results. Numbers can be skipped, repeated, or practiced in any order. The earlier ordered checkpoint behavior remains an isolated game configuration for a future difficulty setting rather than controlling access to recognition.

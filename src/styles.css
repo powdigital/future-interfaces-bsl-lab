@@ -81,6 +81,7 @@ h1 span { color: rgba(255, 122, 0, 0.55); font-weight: 400; }
 .motion-readout[hidden] { display: none; }
 .motion-readout span { color: #ff7a00; font-size: 8px; }
 .motion-readout strong { color: #aaa; font-size: 10px; font-weight: 400; }
+.motion-readout small { color: #555; font-size: 8px; font-style: normal; }
 .motion-readout i { display: block; height: 2px; overflow: hidden; background: #222; }
 .motion-readout b { display: block; width: 0; height: 100%; background: #ff7a00; transition: width .12s linear; }
 

@@ -7,17 +7,15 @@ function frame(timestamp: number, pinchDistance: number, centerX = 0, centerY = 
 
 function primeOpen(recognizer: ReturnType<typeof createPinchCycleRecognizer>) {
   recognizer.update(frame(0, 0.7));
-  recognizer.update(frame(30, 0.68));
-  return recognizer.update(frame(60, 0.66));
+  return recognizer.update(frame(40, 0.66));
 }
 
 describe("single-cycle Number 11 motion recognition", () => {
-  it("detects one complete open, close, reopen pinch", () => {
+  it("detects one complete open-to-closed pinch without requiring release", () => {
     const recognizer = createPinchCycleRecognizer();
     expect(primeOpen(recognizer).phase).toBe("ready");
     expect(recognizer.update(frame(180, 0.42)).phase).toBe("closing");
-    expect(recognizer.update(frame(360, 0.2)).phase).toBe("reopening");
-    const result = recognizer.update(frame(620, 0.58));
+    const result = recognizer.update(frame(360, 0.28));
     expect(result.detected).toBe(true);
     expect(result.signId).toBe("bsl-number-11");
     expect(result.phase).toBe("cooldown");
@@ -34,7 +32,7 @@ describe("single-cycle Number 11 motion recognition", () => {
     const recognizer = createPinchCycleRecognizer();
     primeOpen(recognizer);
     recognizer.update(frame(200, 0.4));
-    recognizer.update(frame(400, 0.32));
+    recognizer.update(frame(400, 0.36));
     const result = recognizer.update(frame(600, 0.65));
     expect(result.detected).toBe(false);
     expect(result.phase).toBe("ready");
@@ -44,8 +42,7 @@ describe("single-cycle Number 11 motion recognition", () => {
     const recognizer = createPinchCycleRecognizer();
     primeOpen(recognizer);
     recognizer.update(frame(180, 0.4));
-    recognizer.update(frame(360, 0.18));
-    expect(recognizer.update(frame(620, 0.6)).detected).toBe(true);
+    expect(recognizer.update(frame(360, 0.18)).detected).toBe(true);
     expect(recognizer.update(frame(720, 0.4)).detected).toBe(false);
     expect(recognizer.update(frame(850, 0.18)).detected).toBe(false);
     expect(recognizer.update(frame(1050, 0.62)).detected).toBe(false);

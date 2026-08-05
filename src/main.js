@@ -41,6 +41,7 @@ const recognitionModeToggle = document.querySelector("#recognition-mode-toggle")
 const recognitionModeCopy = document.querySelector("#recognition-mode-copy");
 const motionReadout = document.querySelector("#motion-readout");
 const motionPhaseCopy = document.querySelector("#motion-phase");
+const motionDistanceCopy = document.querySelector("#motion-distance");
 const motionProgressBar = document.querySelector("#motion-progress");
 const diagnosticsToggle = document.querySelector("#diagnostics-toggle");
 const diagnosticsPanel = document.querySelector("#diagnostics-panel");
@@ -90,7 +91,7 @@ let guidedSession = null;
 let recognitionMode = "static";
 const learnedProfiles = new Map();
 const researchSessionId = createSessionId();
-const chainGame = createChainGame({ lastNumber: 11 });
+const chainGame = createChainGame({ lastNumber: 20, mode: "free" });
 const pinchCycleRecognizer = createPinchCycleRecognizer();
 
 const FINGERTIPS = new Set([4, 8, 12, 16, 20]);
@@ -111,8 +112,7 @@ const MOTION_PHASE_COPY = {
   waiting: "Open thumb and index",
   ready: "Ready. Begin one pinch",
   closing: "Close the pinch",
-  reopening: "Release to complete",
-  cooldown: "Number 11 complete"
+  cooldown: "Number 11 recognized. Release to reset"
 };
 
 function setRecognitionMode(mode) {
@@ -125,6 +125,7 @@ function setRecognitionMode(mode) {
   lastTriggeredGesture = null;
   pinchCycleRecognizer.reset();
   motionPhaseCopy.textContent = MOTION_PHASE_COPY.waiting;
+  motionDistanceCopy.textContent = "Pinch gap: waiting for hand";
   motionProgressBar.style.width = "0%";
   document.querySelectorAll("#gesture-list li.is-active").forEach((item) => item.classList.remove("is-active"));
 }
@@ -134,13 +135,14 @@ function updateMotionRecognition(hands, now) {
     ? pinchCycleRecognizer.updateLandmarks(hands[0], now)
     : pinchCycleRecognizer.handLost();
   motionPhaseCopy.textContent = hands.length > 1 ? "Show one hand only" : MOTION_PHASE_COPY[motionResult.phase];
+  motionDistanceCopy.textContent = motionResult.pinchDistance === null
+    ? "Pinch gap: waiting for hand"
+    : `Pinch gap: ${motionResult.pinchDistance.toFixed(2)}`;
   motionProgressBar.style.width = `${Math.round(motionResult.progress * 100)}%`;
   const numberEleven = document.querySelector('#gesture-list li[data-sign-id="bsl-number-11"]');
   numberEleven?.classList.toggle("is-active", motionResult.phase !== "waiting" && motionResult.phase !== "cooldown");
   if (!motionResult.detected || !motionResult.signId) return;
-  const continuesChain = chainGame.getState().expected === 11;
-  showGestureResponse(motionResult.signId, continuesChain);
-  if (continuesChain) setTimeout(() => setRecognitionMode("static"), 1050);
+  showGestureResponse(motionResult.signId, true);
 }
 
 function renderDiagnostics(metrics) {
@@ -498,15 +500,13 @@ function renderChainState(gameState) {
   chainCountCopy.textContent = String(gameState.progress).padStart(2, "0");
   chainMeter.classList.toggle("is-chaining", gameState.progress > 1);
   document.querySelectorAll("#gesture-list li[data-gesture]").forEach((item) => {
-    item.classList.toggle("is-complete", Number(item.dataset.gesture) <= gameState.progress);
+    item.classList.toggle("is-complete", gameState.recognizedNumbers.includes(Number(item.dataset.gesture)));
   });
 }
 
-function showChainReward(numbers) {
+function showChainReward(numbers, progress) {
   clearTimeout(rewardTimer);
-  const first = numbers[0];
-  const last = numbers[numbers.length - 1];
-  chainRewardCopy.textContent = `Numbers ${first} to ${last} chained`;
+  chainRewardCopy.textContent = `${progress} successful recognitions`;
   document.querySelectorAll("#gesture-list li[data-gesture]").forEach((item) => {
     item.classList.toggle("is-milestone-flash", numbers.includes(Number(item.dataset.gesture)));
   });
@@ -514,7 +514,6 @@ function showChainReward(numbers) {
   chainReward.classList.remove("is-showing");
   void chainReward.offsetWidth;
   chainReward.classList.add("is-showing");
-  if (last === 10) setRecognitionMode("motion");
   rewardTimer = setTimeout(() => {
     chainReward.classList.remove("is-showing");
     chainReward.setAttribute("aria-hidden", "true");
@@ -595,7 +594,9 @@ function showGestureResponse(signId, award = false) {
   gestureResponse.classList.add("is-pinging");
   animateGestureRow(signId);
   playPing();
-  if (gameResult?.type === "accepted" && gameResult.milestone) showChainReward(gameResult.milestone);
+  if (gameResult?.type === "accepted" && gameResult.milestone) {
+    showChainReward(gameResult.milestone, gameResult.state.progress);
+  }
   responseTimer = setTimeout(() => {
     gestureResponse.classList.remove("is-pinging");
     gestureResponse.setAttribute("aria-hidden", "true");
@@ -797,7 +798,7 @@ function track(now) {
         updateMotionRecognition(hands, now);
         if (!diagnosticsPanel.hidden) {
           recognitionDiagnostic.className = "recognition-diagnostic is-uncertain";
-          recognitionDiagnostic.innerHTML = `<strong>Motion mode · Number 11</strong><span>${motionPhaseCopy.textContent}</span><span>One complete open, close and release cycle is required.</span>`;
+          recognitionDiagnostic.innerHTML = `<strong>Motion mode · Number 11</strong><span>${motionPhaseCopy.textContent}</span><span>${motionDistanceCopy.textContent}. Open target 0.45 or more. Closed target 0.32 or less.</span>`;
         }
       } else {
         const recognition = handMetrics.length ? recognizeHands(SIGN_BANK, handMetrics, learnedProfiles, handOrientations) : null;
@@ -852,12 +853,20 @@ clearCalibrationButton.addEventListener("click", async () => {
 });
 gestureList.addEventListener("click", (event) => {
   const item = event.target.closest("li[data-gesture]");
-  if (item) showGestureResponse(item.dataset.signId);
+  if (item) {
+    const sign = getSign(item.dataset.signId);
+    if (sign?.motion?.status === "active") setRecognitionMode("motion");
+    else if (sign?.recognitionType === "static") setRecognitionMode("static");
+    showGestureResponse(item.dataset.signId);
+  }
 });
 gestureList.addEventListener("keydown", (event) => {
   const item = event.target.closest("li[data-gesture]");
   if (item && (event.key === "Enter" || event.key === " ")) {
     event.preventDefault();
+    const sign = getSign(item.dataset.signId);
+    if (sign?.motion?.status === "active") setRecognitionMode("motion");
+    else if (sign?.recognitionType === "static") setRecognitionMode("static");
     showGestureResponse(item.dataset.signId);
   }
 });

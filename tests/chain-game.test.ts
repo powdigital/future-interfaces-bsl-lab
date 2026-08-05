@@ -76,4 +76,26 @@ describe("five-number checkpoint game", () => {
     expect(eleven.type).toBe("accepted");
     if (eleven.type === "accepted") expect(eleven.state.complete).toBe(true);
   });
+
+  it("counts successful recognitions in any order in free practice mode", () => {
+    const game = createChainGame({ lastNumber: 20, mode: "free" });
+    [1, 2, 4, 6].forEach((number) => game.submit(number));
+    const result = game.submit(10);
+
+    expect(result.type).toBe("accepted");
+    if (result.type === "accepted") {
+      expect(result.state.progress).toBe(5);
+      expect(result.state.recognizedNumbers).toEqual([1, 2, 4, 6, 10]);
+      expect(result.milestone).toEqual([1, 2, 4, 6, 10]);
+    }
+  });
+
+  it("does not fail or reset when a number is skipped in free practice mode", () => {
+    const game = createChainGame({ mode: "free" });
+    game.submit(8);
+    const result = game.submit(10);
+
+    expect(result.type).toBe("accepted");
+    expect(result.state.progress).toBe(2);
+  });
 });

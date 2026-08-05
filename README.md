@@ -42,7 +42,9 @@ Palm-axis orientation is measured from the wrist to the middle-finger base. It i
 
 The current number library contains help overlays for 1 to 20. Numbers 1 to 9 can be trained as one-hand static signs. Number 10 currently uses a provisional two-open-hand rule and is not included in calibration until the evidence format supports paired hands.
 
-Number 11 is the first active motion sign. Its recognizer requires one complete open, close, and release pinch cycle between 180 and 1600 milliseconds. A held pinch, an incomplete pinch, a very rapid twitch, and motion dominated by moving the whole hand are rejected. Motion mode can be selected manually and opens automatically after a correct chain through Number 10.
+Number 11 is the first active motion sign. Its recognizer requires an open start followed by one complete closing pinch between 120 and 1800 milliseconds. Recognition happens at closure, then the detector waits for release before it can trigger again. A held pinch, an incomplete pinch, a very rapid twitch, and motion dominated by moving the whole hand are rejected. Motion mode can be selected manually or by selecting Number 11 in the rail.
+
+Recognition feedback and gamification are independent. Every confidently recognized sign displays its response immediately. Free-practice mode counts successful recognitions in any order and rewards every five, so an unavailable or difficult number does not prevent progress. The ordered checkpoint game remains available as a replaceable difficulty rule in `src/core/chain-game.ts`.
 
 Numbers 12 to 20 are registered as single-cycle motion signs with their help overlays, but are deliberately marked as training required. Their movement paths and start and end pose constraints must be captured and validated before recognition is activated. Number 20 is registered as a two-hand motion sign.
 

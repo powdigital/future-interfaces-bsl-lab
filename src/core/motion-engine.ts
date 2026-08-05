@@ -1,6 +1,6 @@
 import type { Landmark } from "./types.ts";
 
-export type MotionPhase = "waiting" | "ready" | "closing" | "reopening" | "cooldown";
+export type MotionPhase = "waiting" | "ready" | "closing" | "cooldown";
 
 export interface MotionObservation {
   timestamp: number;
@@ -29,13 +29,13 @@ export interface PinchCycleConfig {
 }
 
 const DEFAULT_CONFIG: PinchCycleConfig = {
-  openThreshold: 0.5,
-  closedThreshold: 0.24,
-  minDurationMs: 180,
-  maxDurationMs: 1600,
-  cooldownMs: 850,
-  stableOpenFrames: 3,
-  maxCenterDrift: 0.8
+  openThreshold: 0.45,
+  closedThreshold: 0.32,
+  minDurationMs: 120,
+  maxDurationMs: 1800,
+  cooldownMs: 650,
+  stableOpenFrames: 2,
+  maxCenterDrift: 1
 };
 
 function distance(a: Landmark, b: Landmark): number {
@@ -77,9 +77,8 @@ export function createPinchCycleRecognizer(overrides: Partial<PinchCycleConfig> 
   function result(observation: MotionObservation | null, detected = false): MotionResult {
     const progress = phase === "ready" ? 0.2
       : phase === "closing" ? 0.5
-        : phase === "reopening" ? 0.8
-          : phase === "cooldown" ? 1
-            : 0;
+        : phase === "cooldown" ? 1
+          : 0;
     return {
       phase,
       progress,
@@ -122,19 +121,12 @@ export function createPinchCycleRecognizer(overrides: Partial<PinchCycleConfig> 
     }
 
     if (phase === "closing") {
-      if (isClosed) phase = "reopening";
-      else if (isOpen) reset("ready");
-      return result(observation);
-    }
-
-    if (phase === "reopening" && isOpen) {
-      if (elapsed < config.minDurationMs) {
-        reset("ready");
-        return result(observation);
+      if (isClosed && elapsed >= config.minDurationMs) {
+        phase = "cooldown";
+        cooldownStartedAt = observation.timestamp;
+        return result(observation, true);
       }
-      phase = "cooldown";
-      cooldownStartedAt = observation.timestamp;
-      return result(observation, true);
+      if (isOpen) reset("ready");
     }
 
     return result(observation);
