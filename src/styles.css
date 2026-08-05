@@ -77,6 +77,13 @@ h1 span { color: rgba(255, 122, 0, 0.55); font-weight: 400; }
 .status.is-live .status-dot { background: var(--signal); box-shadow: 0 0 15px var(--signal); }
 .status.is-error .status-dot { background: #ff5e5e; }
 
+.motion-readout { position: absolute; z-index: 3; left: 36px; bottom: 64px; display: grid; width: min(260px, calc(100% - 72px)); gap: 5px; text-transform: uppercase; letter-spacing: .12em; }
+.motion-readout[hidden] { display: none; }
+.motion-readout span { color: #ff7a00; font-size: 8px; }
+.motion-readout strong { color: #aaa; font-size: 10px; font-weight: 400; }
+.motion-readout i { display: block; height: 2px; overflow: hidden; background: #222; }
+.motion-readout b { display: block; width: 0; height: 100%; background: #ff7a00; transition: width .12s linear; }
+
 .instruction { position: absolute; z-index: 3; inset: 0; display: grid; place-content: center; justify-items: center; gap: 18px; pointer-events: none; }
 .instruction p { margin: 0; color: rgba(255,255,255,.65); font-size: 13px; letter-spacing: .1em; text-transform: uppercase; }
 .instruction button { pointer-events: auto; border: 1px solid rgba(255,255,255,.35); background: rgba(0,0,0,.7); color: var(--ink); padding: 12px 18px; text-transform: uppercase; letter-spacing: .12em; font-size: 11px; cursor: pointer; }
@@ -150,8 +157,12 @@ h1 span { color: rgba(255, 122, 0, 0.55); font-weight: 400; }
 .chain-meter strong { color: #777; font-size: 19px; font-weight: 400; letter-spacing: .04em; }
 .chain-meter.is-chaining { color: var(--signal); }
 .chain-meter.is-chaining strong { color: var(--signal); text-shadow: 0 0 12px rgba(207,255,56,.35); }
+.recognition-mode { display: flex; align-items: center; justify-content: space-between; width: 100%; margin: 0 0 7px; padding: 8px 0; border: 0; border-bottom: 1px solid var(--line); background: transparent; color: #555; text-transform: uppercase; letter-spacing: .12em; font-size: 8px; cursor: pointer; }
+.recognition-mode strong { color: #ff7a00; font-size: 8px; font-weight: 400; }
+.recognition-mode:hover strong, .recognition-mode:focus-visible strong { color: #fff; }
+.recognition-mode:focus-visible { outline: 1px solid rgba(255,122,0,.5); outline-offset: 3px; }
 .gesture-rail ol { list-style: none; margin: 0; padding: 0; flex: 1; overflow-y: auto; }
-.gesture-rail li { position: relative; display: flex; align-items: center; gap: 17px; height: 44px; border-bottom: 1px solid var(--line); color: #777; font-size: 13px; transition: color .2s, background .2s; transform-origin: center right; }
+.gesture-rail li { position: relative; display: flex; align-items: center; gap: 17px; height: 34px; border-bottom: 1px solid var(--line); color: #777; font-size: 12px; transition: color .2s, background .2s; transform-origin: center right; }
 .gesture-number { color: #454545; font-size: 10px; letter-spacing: .1em; }
 .gesture-rail li::after { content: ""; position: absolute; right: 2px; width: 6px; height: 6px; border: 1px solid #444; border-radius: 50%; }
 .gesture-rail li.is-active { color: var(--signal); background: linear-gradient(90deg, transparent, rgba(207,255,56,.06)); }
@@ -162,6 +173,9 @@ h1 span { color: rgba(255, 122, 0, 0.55); font-weight: 400; }
 .gesture-rail li.is-milestone-flash { z-index: 2; animation: milestone-row-flash 1.3s ease-in-out both; }
 .gesture-rail li.is-error-hit { color: #ff4040; background: linear-gradient(90deg, transparent, rgba(255,64,64,.18)); animation: error-row-flash 1s ease-out both; }
 .gesture-rail li.is-error-hit::after { border-color: #ff4040; background: #ff4040; box-shadow: 0 0 14px #ff4040; }
+.gesture-rail li[data-motion-status="active"]::after { border-color: #ff7a00; }
+.gesture-rail li[data-motion-status="training-required"] { color: #454545; }
+.gesture-rail li[data-motion-status="training-required"]::after { width: 4px; height: 4px; border-color: #333; border-style: dashed; }
 .gesture-rail li[data-gesture] { cursor: pointer; }
 .gesture-rail li[data-gesture]:hover,
 .gesture-rail li[data-gesture]:focus-visible { color: #ff7a00; outline: none; }

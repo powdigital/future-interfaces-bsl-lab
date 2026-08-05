@@ -7,6 +7,7 @@ import { DIGIT_STATE, getHandMetrics, getHandOrientation } from "./core/hand-met
 import { SIGN_BANK, getSign } from "./core/sign-bank.ts";
 import { buildLearnedProfile, recognizeHands } from "./core/sign-engine.ts";
 import { createChainGame } from "./core/chain-game.ts";
+import { createPinchCycleRecognizer } from "./core/motion-engine.ts";
 import { APP_VERSION, createSessionId, PRIMARY_RESEARCHER_ID } from "./core/research-profile.ts";
 import {
   addExample,
@@ -36,6 +37,11 @@ const chainReward = document.querySelector("#chain-reward");
 const chainRewardCopy = document.querySelector("#chain-reward-copy");
 const chainFailure = document.querySelector("#chain-failure");
 const chainFailureCopy = document.querySelector("#chain-failure-copy");
+const recognitionModeToggle = document.querySelector("#recognition-mode-toggle");
+const recognitionModeCopy = document.querySelector("#recognition-mode-copy");
+const motionReadout = document.querySelector("#motion-readout");
+const motionPhaseCopy = document.querySelector("#motion-phase");
+const motionProgressBar = document.querySelector("#motion-progress");
 const diagnosticsToggle = document.querySelector("#diagnostics-toggle");
 const diagnosticsPanel = document.querySelector("#diagnostics-panel");
 const diagnosticsClose = document.querySelector("#diagnostics-close");
@@ -81,9 +87,11 @@ let gestureHistory = [];
 let recordingSession = null;
 let selectedExamples = [];
 let guidedSession = null;
+let recognitionMode = "static";
 const learnedProfiles = new Map();
 const researchSessionId = createSessionId();
-const chainGame = createChainGame();
+const chainGame = createChainGame({ lastNumber: 11 });
+const pinchCycleRecognizer = createPinchCycleRecognizer();
 
 const FINGERTIPS = new Set([4, 8, 12, 16, 20]);
 const FINGER_LABELS = [
@@ -97,6 +105,42 @@ const FINGER_LABELS = [
 function setStatus(message, mode = "") {
   statusCopy.textContent = message;
   status.className = `status ${mode}`.trim();
+}
+
+const MOTION_PHASE_COPY = {
+  waiting: "Open thumb and index",
+  ready: "Ready. Begin one pinch",
+  closing: "Close the pinch",
+  reopening: "Release to complete",
+  cooldown: "Number 11 complete"
+};
+
+function setRecognitionMode(mode) {
+  recognitionMode = mode;
+  const isMotion = mode === "motion";
+  recognitionModeToggle.setAttribute("aria-pressed", String(isMotion));
+  recognitionModeCopy.textContent = isMotion ? "Motion 11" : "Static 1–10";
+  motionReadout.hidden = !isMotion;
+  gestureHistory = [];
+  lastTriggeredGesture = null;
+  pinchCycleRecognizer.reset();
+  motionPhaseCopy.textContent = MOTION_PHASE_COPY.waiting;
+  motionProgressBar.style.width = "0%";
+  document.querySelectorAll("#gesture-list li.is-active").forEach((item) => item.classList.remove("is-active"));
+}
+
+function updateMotionRecognition(hands, now) {
+  const motionResult = hands.length === 1
+    ? pinchCycleRecognizer.updateLandmarks(hands[0], now)
+    : pinchCycleRecognizer.handLost();
+  motionPhaseCopy.textContent = hands.length > 1 ? "Show one hand only" : MOTION_PHASE_COPY[motionResult.phase];
+  motionProgressBar.style.width = `${Math.round(motionResult.progress * 100)}%`;
+  const numberEleven = document.querySelector('#gesture-list li[data-sign-id="bsl-number-11"]');
+  numberEleven?.classList.toggle("is-active", motionResult.phase !== "waiting" && motionResult.phase !== "cooldown");
+  if (!motionResult.detected || !motionResult.signId) return;
+  const continuesChain = chainGame.getState().expected === 11;
+  showGestureResponse(motionResult.signId, continuesChain);
+  if (continuesChain) setTimeout(() => setRecognitionMode("static"), 1050);
 }
 
 function renderDiagnostics(metrics) {
@@ -470,6 +514,7 @@ function showChainReward(numbers) {
   chainReward.classList.remove("is-showing");
   void chainReward.offsetWidth;
   chainReward.classList.add("is-showing");
+  if (last === 10) setRecognitionMode("motion");
   rewardTimer = setTimeout(() => {
     chainReward.classList.remove("is-showing");
     chainReward.setAttribute("aria-hidden", "true");
@@ -748,9 +793,17 @@ function track(now) {
     if (!recordingSession) {
       const handMetrics = hands.map((landmarks) => getHandMetrics(landmarks));
       const handOrientations = hands.map((landmarks) => getHandOrientation(landmarks));
-      const recognition = handMetrics.length ? recognizeHands(SIGN_BANK, handMetrics, learnedProfiles, handOrientations) : null;
-      updateGestureRecognition(recognition?.match?.sign.id || null, now);
-      if (!diagnosticsPanel.hidden) renderRecognitionDiagnostic(recognition, handOrientations[0]);
+      if (recognitionMode === "motion") {
+        updateMotionRecognition(hands, now);
+        if (!diagnosticsPanel.hidden) {
+          recognitionDiagnostic.className = "recognition-diagnostic is-uncertain";
+          recognitionDiagnostic.innerHTML = `<strong>Motion mode · Number 11</strong><span>${motionPhaseCopy.textContent}</span><span>One complete open, close and release cycle is required.</span>`;
+        }
+      } else {
+        const recognition = handMetrics.length ? recognizeHands(SIGN_BANK, handMetrics, learnedProfiles, handOrientations) : null;
+        updateGestureRecognition(recognition?.match?.sign.id || null, now);
+        if (!diagnosticsPanel.hidden) renderRecognitionDiagnostic(recognition, handOrientations[0]);
+      }
     }
     updateDiagnostics(hands[0] || null, now);
     handCountCopy.textContent = `${hands.length} ${hands.length === 1 ? "HAND" : "HANDS"}`;
@@ -764,6 +817,9 @@ function track(now) {
 }
 
 startButton.addEventListener("click", startCamera);
+recognitionModeToggle.addEventListener("click", () => {
+  setRecognitionMode(recognitionMode === "static" ? "motion" : "static");
+});
 diagnosticsToggle.addEventListener("click", () => {
   diagnosticsPanel.hidden = !diagnosticsPanel.hidden;
   diagnosticsToggle.setAttribute("aria-expanded", String(!diagnosticsPanel.hidden));
@@ -837,7 +893,7 @@ window.addEventListener("pagehide", () => stream?.getTracks().forEach((track) =>
 
 async function initializeTrainingDatabase() {
   calibrationSignSelect.innerHTML = SIGN_BANK
-    .filter((sign) => sign.hands === 1)
+    .filter((sign) => sign.hands === 1 && sign.recognitionType === "static")
     .map((sign) => `<option value="${sign.id}">${sign.label}</option>`)
     .join("");
   try {

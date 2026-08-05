@@ -23,6 +23,7 @@ npm run build
 - `src/core/hand-metrics.ts` converts MediaPipe landmarks into scale-relative finger evidence.
 - `src/core/sign-bank.ts` contains versioned, seeded definitions.
 - `src/core/sign-engine.ts` scores signs and builds evidence-weighted profiles.
+- `src/core/motion-engine.ts` recognizes bounded, single-cycle temporal gestures from timestamped landmarks.
 - `src/core/chain-game.ts` contains the replaceable five-number checkpoint game rules.
 - `src/core/training-store.ts` persists examples and learned profiles in IndexedDB.
 - `src/main.js` currently owns browser interaction and will be migrated to typed interface modules incrementally.
@@ -39,4 +40,10 @@ Established profiles retain the seeded definition as a fallback for valid natura
 
 Palm-axis orientation is measured from the wrist to the middle-finger base. It is both a seeded foundation rule and a learned continuous feature, allowing otherwise similar finger shapes such as Numbers 4 and 9 to be separated by hand rotation.
 
-The current number library contains help overlays for 1 to 10. Numbers 1 to 9 can be trained as one-hand signs. Number 10 currently uses a provisional two-open-hand rule and is not included in calibration until the evidence format supports paired hands.
+The current number library contains help overlays for 1 to 20. Numbers 1 to 9 can be trained as one-hand static signs. Number 10 currently uses a provisional two-open-hand rule and is not included in calibration until the evidence format supports paired hands.
+
+Number 11 is the first active motion sign. Its recognizer requires one complete open, close, and release pinch cycle between 180 and 1600 milliseconds. A held pinch, an incomplete pinch, a very rapid twitch, and motion dominated by moving the whole hand are rejected. Motion mode can be selected manually and opens automatically after a correct chain through Number 10.
+
+Numbers 12 to 20 are registered as single-cycle motion signs with their help overlays, but are deliberately marked as training required. Their movement paths and start and end pose constraints must be captured and validated before recognition is activated. Number 20 is registered as a two-hand motion sign.
+
+Static and temporal evidence are kept separate. The existing calibration selector therefore lists static one-hand signs only. The next database milestone is a timestamped motion-clip schema that stores landmark sequences, phase boundaries, speed variation, and negative motion examples without storing video.

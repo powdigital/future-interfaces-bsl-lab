@@ -50,6 +50,12 @@ export interface SignDefinition {
     correct: TrainingPrompt[];
     incorrect: TrainingPrompt[];
   };
+  motion?: {
+    cycleCount: 1;
+    detector: "pinch-cycle" | "horizontal-cycle" | "vertical-cycle" | "two-hand-horizontal-cycle";
+    status: "active" | "training-required";
+    durationMs: { min: number; max: number };
+  };
 }
 
 export interface TrainingPrompt {

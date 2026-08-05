@@ -61,4 +61,19 @@ describe("five-number checkpoint game", () => {
     expect(result.type).toBe("accepted");
     if (result.type === "accepted") expect(result.state.progress).toBe(1);
   });
+
+  it("can extend the sequence to the first motion number without changing checkpoint rewards", () => {
+    const game = createChainGame({ lastNumber: 11 });
+    [1, 2, 3, 4, 5, 6, 7, 8, 9].forEach((number) => game.submit(number));
+    const ten = game.submit(10);
+    const eleven = game.submit(11);
+
+    expect(ten.type).toBe("accepted");
+    if (ten.type === "accepted") {
+      expect(ten.state.expected).toBe(11);
+      expect(ten.milestone).toEqual([6, 7, 8, 9, 10]);
+    }
+    expect(eleven.type).toBe("accepted");
+    if (eleven.type === "accepted") expect(eleven.state.complete).toBe(true);
+  });
 });

@@ -1,6 +1,6 @@
 import type { DigitState, SignDefinition, SignRule, TrainingPrompt } from "./types.ts";
 
-export const SIGN_BANK_VERSION = 3;
+export const SIGN_BANK_VERSION = 4;
 
 const correctPrompts: TrainingPrompt[] = [
   { id: "natural", title: "Natural position", instruction: "Make the sign naturally with your right hand facing the camera." },
@@ -100,6 +100,52 @@ function number(value: number, statePattern: DigitState[], baseRules: SignRule[]
   };
 }
 
+const motionCorrectPrompts: TrainingPrompt[] = [
+  { id: "natural-cycle", title: "Natural cycle", instruction: "Make one complete movement at your natural speed." },
+  { id: "slow-cycle", title: "Slower cycle", instruction: "Make the same complete movement slightly more slowly." },
+  { id: "fast-cycle", title: "Faster cycle", instruction: "Make the same complete movement slightly more quickly." },
+  { id: "near-cycle", title: "Slightly closer", instruction: "Move a little closer and make one complete movement." },
+  { id: "far-cycle", title: "Slightly farther", instruction: "Move a little farther back and make one complete movement." }
+];
+
+const motionIncorrectPrompts: TrainingPrompt[] = [
+  { id: "held-start", title: "Hold the start pose", instruction: "Hold the starting pose without moving. It must not trigger." },
+  { id: "incomplete-cycle", title: "Incomplete movement", instruction: "Begin the movement but stop halfway. It must not trigger." },
+  { id: "double-cycle", title: "Repeated movement", instruction: "Repeat the movement twice. This single-cycle sign must not count twice." }
+];
+
+function motionNumber(
+  value: number,
+  detector: NonNullable<SignDefinition["motion"]>["detector"],
+  hands: 1 | 2 = 1,
+  active = false
+): SignDefinition {
+  return {
+    id: `bsl-number-${value}`,
+    label: `Number ${value}`,
+    shortLabel: String(value),
+    category: "number",
+    recognitionType: hands === 2 ? "two-hand-motion" : "motion",
+    hands,
+    promptAsset: `/BSL_diagram_overlays/bsl${value}.png`,
+    statePattern: [],
+    baseRules: [],
+    status: "provisional",
+    minimumScore: 0.82,
+    minimumMargin: 0.06,
+    trainingProtocol: {
+      correct: motionCorrectPrompts,
+      incorrect: motionIncorrectPrompts
+    },
+    motion: {
+      cycleCount: 1,
+      detector,
+      status: active ? "active" : "training-required",
+      durationMs: { min: 180, max: 1600 }
+    }
+  };
+}
+
 export const SIGN_BANK: SignDefinition[] = [
   number(1, ["folded", "extended", "folded", "folded", "folded"], [
     uprightHandRule,
@@ -132,7 +178,17 @@ export const SIGN_BANK: SignDefinition[] = [
     horizontalHandRule,
     { feature: "thumb.reach", min: -0.8, max: -0.35, weight: 5, foundation: false }
   ]),
-  number(10, ["extended", "extended", "extended", "extended", "extended"], [], 2)
+  number(10, ["extended", "extended", "extended", "extended", "extended"], [], 2),
+  motionNumber(11, "pinch-cycle", 1, true),
+  motionNumber(12, "pinch-cycle"),
+  motionNumber(13, "horizontal-cycle"),
+  motionNumber(14, "horizontal-cycle"),
+  motionNumber(15, "horizontal-cycle"),
+  motionNumber(16, "vertical-cycle"),
+  motionNumber(17, "vertical-cycle"),
+  motionNumber(18, "vertical-cycle"),
+  motionNumber(19, "vertical-cycle"),
+  motionNumber(20, "two-hand-horizontal-cycle", 2)
 ];
 
 export function getSign(signId: string): SignDefinition | null {
