@@ -170,6 +170,8 @@ h1 span { color: rgba(255, 122, 0, 0.55); font-weight: 400; }
 .gesture-rail li.is-active::after { border-color: var(--signal); background: var(--signal); box-shadow: 0 0 12px var(--signal); }
 .gesture-rail li.is-complete { color: var(--signal); background: linear-gradient(90deg, transparent, rgba(207,255,56,.06)); }
 .gesture-rail li.is-complete::after { border-color: var(--signal); background: var(--signal); box-shadow: 0 0 12px var(--signal); }
+.gesture-rail li.is-deprioritized { opacity: .32; }
+.gesture-rail li.is-complete.is-deprioritized { color: rgba(207,255,56,.55); }
 .gesture-rail li.is-hit { z-index: 2; animation: gesture-bounce .62s cubic-bezier(.2,.8,.3,1) both; }
 .gesture-rail li.is-milestone-flash { z-index: 2; animation: milestone-row-flash 1.3s ease-in-out both; }
 .gesture-rail li.is-error-hit { color: #ff4040; background: linear-gradient(90deg, transparent, rgba(255,64,64,.18)); animation: error-row-flash 1s ease-out both; }

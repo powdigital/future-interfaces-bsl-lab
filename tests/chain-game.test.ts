@@ -98,4 +98,36 @@ describe("five-number checkpoint game", () => {
     expect(result.type).toBe("accepted");
     expect(result.state.progress).toBe(2);
   });
+
+  it("moves to the second five-number focus block after completing 1 to 5", () => {
+    const game = createChainGame({ mode: "block" });
+    [1, 2, 3, 4].forEach((number) => game.submit(number));
+    const result = game.submit(5);
+
+    expect(result.type).toBe("accepted");
+    expect(result.state.checkpoint).toBe(5);
+    expect(result.state.expected).toBe(6);
+    if (result.type === "accepted") expect(result.milestone).toEqual([1, 2, 3, 4, 5]);
+  });
+
+  it("wipes the current block when recognition moves backwards", () => {
+    const game = createChainGame({ mode: "block" });
+    [1, 2, 3, 4, 5, 6, 7, 8].forEach((number) => game.submit(number));
+    const result = game.submit(4);
+
+    expect(result.type).toBe("failed");
+    expect(result.state.progress).toBe(5);
+    expect(result.state.expected).toBe(6);
+    expect(result.state.recognizedNumbers).toEqual([1, 2, 3, 4, 5]);
+  });
+
+  it("shows a forward number without changing ordered block progress", () => {
+    const game = createChainGame({ mode: "block" });
+    [1, 2, 3].forEach((number) => game.submit(number));
+    const result = game.submit(5);
+
+    expect(result.type).toBe("ignored");
+    expect(result.state.progress).toBe(3);
+    expect(result.state.expected).toBe(4);
+  });
 });

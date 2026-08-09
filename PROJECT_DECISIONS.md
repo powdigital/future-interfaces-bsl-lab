@@ -97,4 +97,6 @@ Static pose profiles and temporal motion profiles remain separate evidence types
 
 The recognizer and the game are separate concerns. A valid recognition must always display its sign response even when it is not the next number in an optional sequence.
 
-The default interface uses free-practice scoring. Any confidently recognized active number adds one successful recognition, and rewards appear every five results. Numbers can be skipped, repeated, or practiced in any order. The earlier ordered checkpoint behavior remains an isolated game configuration for a future difficulty setting rather than controlling access to recognition.
+Recognition and game progress remain independent. The default interface now uses checkpointed block mode. Numbers progress in order through 1 to 5 and then 6 to 10. A forward recognition is displayed without changing progress. A backward recognition resets only the current block to its previous checkpoint.
+
+Completing a block changes recognition priority. After 1 to 5 are complete, those signs are excluded from active static matching while 6 to 10 are in focus. This prevents visually similar completed signs, particularly Number 4, from competing with Number 9. Strict ordered and free-practice behaviors remain isolated configurations for later difficulty controls.

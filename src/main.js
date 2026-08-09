@@ -8,6 +8,7 @@ import { SIGN_BANK, getSign } from "./core/sign-bank.ts";
 import { buildLearnedProfile, recognizeHands } from "./core/sign-engine.ts";
 import { createChainGame } from "./core/chain-game.ts";
 import { createPinchCycleRecognizer } from "./core/motion-engine.ts";
+import { focusedStaticNumbers, numberFocusRange } from "./core/recognition-focus.ts";
 import { APP_VERSION, createSessionId, PRIMARY_RESEARCHER_ID } from "./core/research-profile.ts";
 import {
   addExample,
@@ -84,6 +85,7 @@ let audioContext;
 let responseTimer;
 let rewardTimer;
 let failureTimer;
+let delayedFailureTimer;
 let gestureHistory = [];
 let recordingSession = null;
 let selectedExamples = [];
@@ -91,7 +93,7 @@ let guidedSession = null;
 let recognitionMode = "static";
 const learnedProfiles = new Map();
 const researchSessionId = createSessionId();
-const chainGame = createChainGame({ lastNumber: 20, mode: "free" });
+const chainGame = createChainGame({ lastNumber: 10, mode: "block" });
 const pinchCycleRecognizer = createPinchCycleRecognizer();
 
 const FINGERTIPS = new Set([4, 8, 12, 16, 20]);
@@ -496,17 +498,26 @@ function animateGestureRow(signId) {
   row.classList.add("is-hit");
 }
 
+function focusedStaticSignBank() {
+  return focusedStaticNumbers(SIGN_BANK, chainGame.getState().progress);
+}
+
 function renderChainState(gameState) {
+  const { minimum: focusMinimum, maximum: focusMaximum } = numberFocusRange(gameState.progress);
   chainCountCopy.textContent = String(gameState.progress).padStart(2, "0");
   chainMeter.classList.toggle("is-chaining", gameState.progress > 1);
   document.querySelectorAll("#gesture-list li[data-gesture]").forEach((item) => {
-    item.classList.toggle("is-complete", gameState.recognizedNumbers.includes(Number(item.dataset.gesture)));
+    const number = Number(item.dataset.gesture);
+    item.classList.toggle("is-complete", gameState.recognizedNumbers.includes(number));
+    item.classList.toggle("is-deprioritized", number <= 10 && (number < focusMinimum || number > focusMaximum));
   });
 }
 
 function showChainReward(numbers, progress) {
   clearTimeout(rewardTimer);
-  chainRewardCopy.textContent = `${progress} successful recognitions`;
+  gestureHistory = [];
+  lastTriggeredGesture = null;
+  chainRewardCopy.textContent = progress === 5 ? "Numbers 1 to 5 complete" : "Numbers 6 to 10 complete";
   document.querySelectorAll("#gesture-list li[data-gesture]").forEach((item) => {
     item.classList.toggle("is-milestone-flash", numbers.includes(Number(item.dataset.gesture)));
   });
@@ -579,11 +590,8 @@ function showGestureResponse(signId, award = false) {
     : null;
   if (gameResult) {
     renderChainState(gameResult.state);
-    if (gameResult.type === "failed") {
-      showChainFailure(gameResult);
-      return;
-    }
   }
+  clearTimeout(delayedFailureTimer);
   clearTimeout(responseTimer);
   responseImage.src = sign.promptAsset;
   responseImage.alt = `BSL ${sign.label}`;
@@ -601,6 +609,9 @@ function showGestureResponse(signId, award = false) {
     gestureResponse.classList.remove("is-pinging");
     gestureResponse.setAttribute("aria-hidden", "true");
   }, 1000);
+  if (gameResult?.type === "failed") {
+    delayedFailureTimer = setTimeout(() => showChainFailure(gameResult), 1000);
+  }
 }
 
 function updateGestureRecognition(rawSignId, now) {
@@ -801,7 +812,9 @@ function track(now) {
           recognitionDiagnostic.innerHTML = `<strong>Motion mode · Number 11</strong><span>${motionPhaseCopy.textContent}</span><span>${motionDistanceCopy.textContent}. Open target 0.45 or more. Closed target 0.32 or less.</span>`;
         }
       } else {
-        const recognition = handMetrics.length ? recognizeHands(SIGN_BANK, handMetrics, learnedProfiles, handOrientations) : null;
+        const recognition = handMetrics.length
+          ? recognizeHands(focusedStaticSignBank(), handMetrics, learnedProfiles, handOrientations)
+          : null;
         updateGestureRecognition(recognition?.match?.sign.id || null, now);
         if (!diagnosticsPanel.hidden) renderRecognitionDiagnostic(recognition, handOrientations[0]);
       }
@@ -915,6 +928,7 @@ async function initializeTrainingDatabase() {
   }
 }
 
+renderChainState(chainGame.getState());
 initializeTrainingDatabase();
 
 if (!navigator.mediaDevices?.getUserMedia) {

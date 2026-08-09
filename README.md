@@ -44,7 +44,9 @@ The current number library contains help overlays for 1 to 20. Numbers 1 to 9 ca
 
 Number 11 is the first active motion sign. Its recognizer requires an open start followed by one complete closing pinch between 120 and 1800 milliseconds. Recognition happens at closure, then the detector waits for release before it can trigger again. A held pinch, an incomplete pinch, a very rapid twitch, and motion dominated by moving the whole hand are rejected. Motion mode can be selected manually or by selecting Number 11 in the rail.
 
-Recognition feedback and gamification are independent. Every confidently recognized sign displays its response immediately. Free-practice mode counts successful recognitions in any order and rewards every five, so an unavailable or difficult number does not prevent progress. The ordered checkpoint game remains available as a replaceable difficulty rule in `src/core/chain-game.ts`.
+Recognition feedback and gamification are independent. Every confidently recognized sign displays its response immediately. The default block mode progresses through 1 to 5 and then 6 to 10. Completing a block makes it a safe checkpoint and deprioritizes those five signs. During the second block, only Numbers 6 to 10 compete for static recognition, preventing a completed Number 4 from being selected instead of Number 9.
+
+A backward recognition wipes the current block and returns to the previous five-number checkpoint. A forward number is still identified and displayed but does not change ordered progress. Free-practice and strict ordered modes remain available as replaceable difficulty rules in `src/core/chain-game.ts`.
 
 Numbers 12 to 20 are registered as single-cycle motion signs with their help overlays, but are deliberately marked as training required. Their movement paths and start and end pose constraints must be captured and validated before recognition is activated. Number 20 is registered as a two-hand motion sign.
 

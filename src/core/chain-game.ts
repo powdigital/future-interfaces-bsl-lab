@@ -2,7 +2,7 @@ export interface ChainGameConfig {
   firstNumber: number;
   lastNumber: number;
   milestoneSize: number;
-  mode: "ordered" | "free";
+  mode: "ordered" | "free" | "block";
 }
 
 export interface ChainGameState {
@@ -25,6 +25,12 @@ export type ChainGameResult =
       received: number;
       expected: number;
       resetNumbers: number[];
+    }
+  | {
+      type: "ignored";
+      state: ChainGameState;
+      received: number;
+      expected: number;
     };
 
 export const DEFAULT_CHAIN_GAME_CONFIG: ChainGameConfig = {
@@ -72,6 +78,34 @@ export function createChainGame(overrides: Partial<ChainGameConfig> = {}) {
         ? recognizedNumbers.slice(-config.milestoneSize)
         : null;
       return { type: "accepted", state: stateFor(progress, config, recognizedNumbers), milestone };
+    }
+
+    if (config.mode === "block") {
+      const expected = progress >= config.lastNumber ? config.firstNumber : progress + 1;
+      if (received === expected) {
+        progress = received;
+        recognizedNumbers = sequence(config.firstNumber, progress);
+        const milestone = progress % config.milestoneSize === 0
+          ? sequence(progress - config.milestoneSize + 1, progress)
+          : null;
+        return { type: "accepted", state: stateFor(progress, config, recognizedNumbers), milestone };
+      }
+
+      if (received > expected) {
+        return { type: "ignored", state: stateFor(progress, config, recognizedNumbers), received, expected };
+      }
+
+      const previousProgress = progress;
+      const checkpoint = checkpointFor(previousProgress, config);
+      progress = checkpoint;
+      recognizedNumbers = sequence(config.firstNumber, progress);
+      return {
+        type: "failed",
+        state: stateFor(progress, config, recognizedNumbers),
+        received,
+        expected,
+        resetNumbers: sequence(checkpoint + 1, Math.min(previousProgress, config.lastNumber))
+      };
     }
 
     if (progress >= config.lastNumber) {
