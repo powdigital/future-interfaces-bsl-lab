@@ -92,7 +92,19 @@ h1 span { color: rgba(255, 122, 0, 0.55); font-weight: 400; }
 .instruction button:disabled { opacity: .4; cursor: wait; }
 .instruction.is-running { display: none; }
 
-.readout { position: absolute; z-index: 3; right: 24px; bottom: 30px; display: flex; gap: 18px; color: var(--muted); }
+.initialization-gate { position: absolute; z-index: 5; inset: 0; display: grid; place-content: center; justify-items: center; gap: 10px; background: rgba(0,0,0,.34); text-align: center; text-transform: uppercase; letter-spacing: .13em; pointer-events: none; }
+.initialization-gate[hidden] { display: none; }
+.initialization-gate span { color: #ff7a00; font-size: 8px; }
+.initialization-gate img { width: min(190px, 34vw); max-height: 38vh; object-fit: contain; mix-blend-mode: screen; }
+.initialization-gate strong { color: #fff; font-size: 12px; font-weight: 400; }
+.initialization-gate small { color: #777; font-size: 8px; }
+
+.readout { position: absolute; z-index: 3; right: 24px; bottom: 30px; display: flex; align-items: end; gap: 18px; color: var(--muted); }
+.hand-count-stack { display: grid; justify-items: end; gap: 4px; }
+.hand-position-icons { display: flex; min-height: 24px; align-items: end; justify-content: flex-end; gap: 8px; }
+.hand-position-indicator { display: grid; grid-template-columns: 14px auto; align-items: center; gap: 3px; color: #777; font-size: 6px; line-height: 1.15; white-space: nowrap; }
+.hand-position-indicator img { display: block; width: 14px; height: 22px; object-fit: contain; mix-blend-mode: screen; transform-origin: center; transition: none; animation: none; }
+.hand-position-indicator small { display: grid; gap: 1px; color: inherit; font-size: inherit; letter-spacing: .08em; }
 
 .diagnostics-panel { position: absolute; z-index: 8; left: 24px; bottom: 58px; width: min(650px, calc(100% - 48px)); max-height: calc(100% - 120px); overflow: auto; padding: 18px; border: 1px solid rgba(255,122,0,.35); background: rgba(5,5,5,.94); backdrop-filter: blur(14px); box-shadow: 0 18px 70px rgba(0,0,0,.5); }
 .diagnostics-panel[hidden] { display: none; }

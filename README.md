@@ -24,6 +24,7 @@ npm run build
 - `src/core/sign-bank.ts` contains versioned, seeded definitions.
 - `src/core/sign-engine.ts` scores signs and builds evidence-weighted profiles.
 - `src/core/motion-engine.ts` recognizes bounded, single-cycle temporal gestures from timestamped landmarks.
+- `src/core/hand-position.ts` classifies palm or back facing and snaps the displayed hand axis to four cardinal angles.
 - `src/core/chain-game.ts` contains the replaceable five-number checkpoint game rules.
 - `src/core/training-store.ts` persists examples and learned profiles in IndexedDB.
 - `src/main.js` currently owns browser interaction and will be migrated to typed interface modules incrementally.
@@ -47,6 +48,10 @@ Number 11 is the first active motion sign. Its recognizer requires an open start
 Recognition feedback and gamification are independent. Every confidently recognized sign displays its response immediately. The default block mode progresses through 1 to 5 and then 6 to 10. Completing a block makes it a safe checkpoint and deprioritizes those five signs. During the second block, only Numbers 6 to 10 compete for static recognition, preventing a completed Number 4 from being selected instead of Number 9.
 
 A backward recognition wipes the current block and returns to the previous five-number checkpoint. A forward number is still identified and displayed but does not change ordered progress. Free-practice and strict ordered modes remain available as replaceable difficulty rules in `src/core/chain-game.ts`.
+
+Camera sessions begin with an initialization gate. The Number 1 diagram remains visible until Number 1 is confidently recognized in its required upright position. Normal progression and hand-position reporting begin only after that confirmation.
+
+After initialization, hand-position indicators update at a fixed 500 millisecond interval. Each detected hand is classified independently as front, back, or unknown using MediaPipe handedness and palm landmark winding. Its wrist-to-middle-finger axis is snapped to `-90°`, `0°`, `90°`, or `180°`. The supplied front and back hand icons flick immediately to the new angle with no transition animation. An edge-on or unclassified hand is reported as unknown instead of being assigned an unreliable icon.
 
 Numbers 12 to 20 are registered as single-cycle motion signs with their help overlays, but are deliberately marked as training required. Their movement paths and start and end pose constraints must be captured and validated before recognition is activated. Number 20 is registered as a two-hand motion sign.
 

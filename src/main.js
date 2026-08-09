@@ -9,6 +9,7 @@ import { buildLearnedProfile, recognizeHands } from "./core/sign-engine.ts";
 import { createChainGame } from "./core/chain-game.ts";
 import { createPinchCycleRecognizer } from "./core/motion-engine.ts";
 import { focusedStaticNumbers, numberFocusRange } from "./core/recognition-focus.ts";
+import { getHandPosition, mirrorCardinalAngle } from "./core/hand-position.ts";
 import { APP_VERSION, createSessionId, PRIMARY_RESEARCHER_ID } from "./core/research-profile.ts";
 import {
   addExample,
@@ -29,6 +30,8 @@ const status = document.querySelector("#status");
 const statusCopy = document.querySelector("#status-copy");
 const fpsCopy = document.querySelector("#fps");
 const handCountCopy = document.querySelector("#hand-count");
+const handPositionIcons = document.querySelector("#hand-position-icons");
+const initializationGate = document.querySelector("#initialization-gate");
 const gestureList = document.querySelector("#gesture-list");
 const gestureResponse = document.querySelector("#gesture-response");
 const responseImage = document.querySelector("#response-image");
@@ -91,10 +94,13 @@ let recordingSession = null;
 let selectedExamples = [];
 let guidedSession = null;
 let recognitionMode = "static";
+let isInitialized = false;
+let lastHandPositionUpdateAt = 0;
 const learnedProfiles = new Map();
 const researchSessionId = createSessionId();
 const chainGame = createChainGame({ lastNumber: 10, mode: "block" });
 const pinchCycleRecognizer = createPinchCycleRecognizer();
+const HAND_POSITION_UPDATE_MS = 500;
 
 const FINGERTIPS = new Set([4, 8, 12, 16, 20]);
 const FINGER_LABELS = [
@@ -108,6 +114,46 @@ const FINGER_LABELS = [
 function setStatus(message, mode = "") {
   statusCopy.textContent = message;
   status.className = `status ${mode}`.trim();
+}
+
+function handednessName(result, index) {
+  const category = (result.handedness || result.handednesses || [])[index]?.[0];
+  return category?.categoryName || category?.displayName || "Unknown";
+}
+
+function updateHandPositionIndicators(result, now) {
+  if (!isInitialized || now - lastHandPositionUpdateAt < HAND_POSITION_UPDATE_MS) return;
+  lastHandPositionUpdateAt = now;
+  const readings = (result.landmarks || []).map((landmarks, index) => {
+    const reading = getHandPosition(landmarks, handednessName(result, index));
+    return {
+      ...reading,
+      angle: mirrorCardinalAngle(reading.angle),
+      screenX: 1 - landmarks[0].x
+    };
+  }).sort((a, b) => a.screenX - b.screenX);
+
+  handPositionIcons.innerHTML = readings.map((reading) => {
+    if (reading.facing === "unknown") {
+      return `<span class="hand-position-indicator is-unknown"><small><b>${reading.handedness}</b><span>UNKNOWN · ${reading.angle}°</span></small></span>`;
+    }
+    const asset = reading.facing === "front" ? "palm_forward.png" : "back_hand.png";
+    return `<span class="hand-position-indicator">
+      <img src="/BSL_diagram_overlays/hand_positions/${asset}" alt="" style="transform: rotate(${reading.angle}deg)">
+      <small><b>${reading.handedness}</b><span>${reading.facing} · ${reading.angle}°</span></small>
+    </span>`;
+  }).join("");
+}
+
+function completeInitialization(now) {
+  if (isInitialized) return;
+  isInitialized = true;
+  initializationGate.hidden = true;
+  lastHandPositionUpdateAt = now - HAND_POSITION_UPDATE_MS;
+  gestureHistory = [];
+  lastTriggeredGesture = null;
+  showGestureResponse("bsl-number-1", true);
+  setStatus("Initialisation complete. Hand direction active", "is-live");
 }
 
 const MOTION_PHASE_COPY = {
@@ -633,6 +679,11 @@ function updateGestureRecognition(rawSignId, now) {
     return;
   }
 
+  if (!isInitialized) {
+    if (signId === "bsl-number-1") completeInitialization(now);
+    return;
+  }
+
   const cooledDown = now - lastTriggeredAt > 900;
   const changed = signId !== lastTriggeredGesture;
   if (cooledDown && changed) {
@@ -684,7 +735,8 @@ async function startCamera() {
     video.srcObject = stream;
     await video.play();
     instruction.classList.add("is-running");
-    setStatus("Camera live. Looking for hands", "is-live");
+    initializationGate.hidden = false;
+    setStatus("Initialising. Sign Number 1 to begin", "is-live");
     requestAnimationFrame(track);
   } catch (error) {
     console.error(error);
@@ -820,8 +872,11 @@ function track(now) {
       }
     }
     updateDiagnostics(hands[0] || null, now);
+    updateHandPositionIndicators(results, now);
     handCountCopy.textContent = `${hands.length} ${hands.length === 1 ? "HAND" : "HANDS"}`;
-    setStatus(hands.length ? `Tracking ${hands.length} hand${hands.length > 1 ? "s" : ""}` : "Camera live. Looking for hands", "is-live");
+    if (isInitialized) {
+      setStatus(hands.length ? `Tracking ${hands.length} hand${hands.length > 1 ? "s" : ""}` : "Camera live. Looking for hands", "is-live");
+    }
   }
 
   lastDetectedHands.forEach((landmarks) => drawHand(landmarks, bounds));

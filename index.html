@@ -35,9 +35,19 @@
           <button id="start-button" type="button" disabled>Start camera</button>
         </div>
 
+        <div class="initialization-gate" id="initialization-gate" role="status" aria-live="polite" hidden>
+          <span>Initialising</span>
+          <img src="/BSL_diagram_overlays/bsl1.png" alt="BSL Number 1 reference" />
+          <strong>Sign Number 1 to begin</strong>
+          <small>Hold the sign upright until it is confirmed</small>
+        </div>
+
         <div class="readout" aria-hidden="true">
           <span id="fps">00 FPS</span>
-          <span id="hand-count">0 HANDS</span>
+          <span class="hand-count-stack">
+            <span class="hand-position-icons" id="hand-position-icons"></span>
+            <span id="hand-count">0 HANDS</span>
+          </span>
         </div>
 
         <section class="diagnostics-panel" id="diagnostics-panel" aria-label="Finger calibration diagnostics" hidden>

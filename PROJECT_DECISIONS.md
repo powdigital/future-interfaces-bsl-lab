@@ -100,3 +100,11 @@ The recognizer and the game are separate concerns. A valid recognition must alwa
 Recognition and game progress remain independent. The default interface now uses checkpointed block mode. Numbers progress in order through 1 to 5 and then 6 to 10. A forward recognition is displayed without changing progress. A backward recognition resets only the current block to its previous checkpoint.
 
 Completing a block changes recognition priority. After 1 to 5 are complete, those signs are excluded from active static matching while 6 to 10 are in focus. This prevents visually similar completed signs, particularly Number 4, from competing with Number 9. Strict ordered and free-practice behaviors remain isolated configurations for later difficulty controls.
+
+## 2026-08-09: Number 1 initializes spatial hand reporting
+
+Every camera session starts with a Number 1 initialization gate. The interface displays the supplied Number 1 diagram and does not begin game progression or spatial hand reporting until Number 1 is confidently recognized upright.
+
+After initialization, spatial reporting samples at 500 millisecond intervals rather than every video frame. Each hand receives an independent front, back, or unknown classification from handedness plus palm landmark winding. Its signed wrist-to-middle-finger direction is snapped to the nearest of four interface states: `-90°`, `0°`, `90°`, or `180°`.
+
+Only the supplied `palm_forward.png` and `back_hand.png` assets represent classified hands. Icons change angle immediately with no CSS transition or interpolation. When facing cannot be distinguished reliably, the interface reports unknown and does not substitute a potentially incorrect icon.
