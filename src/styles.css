@@ -170,6 +170,9 @@ h1 span { color: rgba(255, 122, 0, 0.55); font-weight: 400; }
 .chain-meter strong { color: #777; font-size: 19px; font-weight: 400; letter-spacing: .04em; }
 .chain-meter.is-chaining { color: var(--signal); }
 .chain-meter.is-chaining strong { color: var(--signal); text-shadow: 0 0 12px rgba(207,255,56,.35); }
+.chain-label { display: inline-flex; align-items: center; gap: 7px; }
+.chain-reset { display: inline-grid; place-items: center; width: 16px; height: 16px; padding: 0; border: 1px solid rgba(255,64,64,.55); border-radius: 50%; background: transparent; color: #ff5050; font-size: 12px; line-height: 1; cursor: pointer; }
+.chain-reset:hover, .chain-reset:focus-visible { border-color: #ff4040; background: rgba(255,64,64,.12); color: #fff; outline: none; }
 .recognition-mode { display: flex; align-items: center; justify-content: space-between; width: 100%; margin: 0 0 7px; padding: 8px 0; border: 0; border-bottom: 1px solid var(--line); background: transparent; color: #555; text-transform: uppercase; letter-spacing: .12em; font-size: 8px; cursor: pointer; }
 .recognition-mode strong { color: #ff7a00; font-size: 8px; font-weight: 400; }
 .recognition-mode:hover strong, .recognition-mode:focus-visible strong { color: #fff; }

@@ -49,6 +49,8 @@ Recognition feedback and gamification are independent. Every confidently recogni
 
 A backward recognition wipes the current block and returns to the previous five-number checkpoint. A forward number is still identified and displayed but does not change ordered progress. Free-practice and strict ordered modes remain available as replaceable difficulty rules in `src/core/chain-game.ts`.
 
+The small red reset control beside the Chain label clears every completed number, game timer, reward or failure state, and recognition history. It returns focus to Numbers 1 to 5 without stopping the camera or repeating camera initialization.
+
 Camera sessions begin with an initialization gate. The Number 1 diagram remains visible until Number 1 is confidently recognized in its required upright position. Normal progression and hand-position reporting begin only after that confirmation.
 
 After initialization, hand-position indicators update at a fixed 500 millisecond interval. Each detected hand is classified independently as front, back, or unknown using MediaPipe handedness and palm landmark winding. Direction uses a palm coordinate frame built from the wrist, the centre of all four knuckles, and the perpendicular of the index-to-pinky knuckle line. Those two directional signals are combined and snapped to `-90°`, `0°`, `90°`, or `180°`. The supplied front and back hand icons flick immediately to the new angle with no transition animation. An edge-on, unclassified, or low-confidence palm frame is reported as unknown instead of being assigned an unreliable icon.

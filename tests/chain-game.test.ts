@@ -130,4 +130,15 @@ describe("five-number checkpoint game", () => {
     expect(result.state.progress).toBe(3);
     expect(result.state.expected).toBe(4);
   });
+
+  it("resets all block progress to the first number", () => {
+    const game = createChainGame({ mode: "block" });
+    [1, 2, 3, 4, 5, 6, 7].forEach((number) => game.submit(number));
+    const state = game.reset();
+
+    expect(state.progress).toBe(0);
+    expect(state.expected).toBe(1);
+    expect(state.checkpoint).toBe(0);
+    expect(state.recognizedNumbers).toEqual([]);
+  });
 });

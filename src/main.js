@@ -37,6 +37,7 @@ const gestureResponse = document.querySelector("#gesture-response");
 const responseImage = document.querySelector("#response-image");
 const chainMeter = document.querySelector("#chain-meter");
 const chainCountCopy = document.querySelector("#chain-count");
+const chainResetButton = document.querySelector("#chain-reset");
 const chainReward = document.querySelector("#chain-reward");
 const chainRewardCopy = document.querySelector("#chain-reward-copy");
 const chainFailure = document.querySelector("#chain-failure");
@@ -559,6 +560,27 @@ function renderChainState(gameState) {
   });
 }
 
+function resetGameProgress() {
+  clearTimeout(responseTimer);
+  clearTimeout(rewardTimer);
+  clearTimeout(failureTimer);
+  clearTimeout(delayedFailureTimer);
+  gestureHistory = [];
+  lastTriggeredGesture = null;
+  lastTriggeredAt = 0;
+  renderChainState(chainGame.reset());
+  setRecognitionMode("static");
+  gestureResponse.classList.remove("is-pinging");
+  gestureResponse.setAttribute("aria-hidden", "true");
+  chainReward.classList.remove("is-showing");
+  chainReward.setAttribute("aria-hidden", "true");
+  chainFailure.classList.remove("is-showing");
+  chainFailure.setAttribute("aria-hidden", "true");
+  document.querySelectorAll("#gesture-list li").forEach((item) => {
+    item.classList.remove("is-active", "is-hit", "is-milestone-flash", "is-error-hit");
+  });
+}
+
 function showChainReward(numbers, progress) {
   clearTimeout(rewardTimer);
   gestureHistory = [];
@@ -886,6 +908,7 @@ function track(now) {
 }
 
 startButton.addEventListener("click", startCamera);
+chainResetButton.addEventListener("click", resetGameProgress);
 recognitionModeToggle.addEventListener("click", () => {
   setRecognitionMode(recognitionMode === "static" ? "motion" : "static");
 });
