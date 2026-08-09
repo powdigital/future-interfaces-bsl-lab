@@ -105,6 +105,14 @@ Completing a block changes recognition priority. After 1 to 5 are complete, thos
 
 Every camera session starts with a Number 1 initialization gate. The interface displays the supplied Number 1 diagram and does not begin game progression or spatial hand reporting until Number 1 is confidently recognized upright.
 
-After initialization, spatial reporting samples at 500 millisecond intervals rather than every video frame. Each hand receives an independent front, back, or unknown classification from handedness plus palm landmark winding. Its signed wrist-to-middle-finger direction is snapped to the nearest of four interface states: `-90°`, `0°`, `90°`, or `180°`.
+After initialization, spatial reporting samples at 500 millisecond intervals rather than every video frame. Each hand receives an independent front, back, or unknown classification from handedness plus palm landmark winding. Its signed direction is snapped to the nearest of four interface states: `-90°`, `0°`, `90°`, or `180°`.
 
 Only the supplied `palm_forward.png` and `back_hand.png` assets represent classified hands. Icons change angle immediately with no CSS transition or interpolation. When facing cannot be distinguished reliably, the interface reports unknown and does not substitute a potentially incorrect icon.
+
+## 2026-08-09: Spatial gates precede finger geometry
+
+The original direction rule used only the wrist and middle-finger base. That single point was too sensitive to tracking noise, particularly for a left hand around `-90°`. It is replaced by a palm coordinate frame that combines the wrist-to-four-knuckle centroid with the perpendicular of the index-to-pinky knuckle line. A confidence value measures axis strength and the expected orthogonality of those two signals.
+
+Recognition now follows a fixed elimination order. Exact detected hand count is the first hard gate. Known palm rotation is the second hard gate. Only eligible candidates reach finger-state and continuous geometry scoring. Motion analysis remains last for temporal signs.
+
+Low-confidence palm frames do not receive a direction icon and cannot pass a sign's foundation orientation gate. Front or back remains a reported measurement but does not become a hard sign requirement until that facing has sign-specific positive and negative evidence.

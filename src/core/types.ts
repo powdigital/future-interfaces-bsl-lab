@@ -16,6 +16,9 @@ export interface DigitMetrics {
 
 export interface HandOrientationMetrics {
   roll: number;
+  signedAngle?: number;
+  cardinalAngle?: -90 | 0 | 90 | 180;
+  confidence?: number;
 }
 
 export type HandMetrics = [DigitMetrics, DigitMetrics, DigitMetrics, DigitMetrics, DigitMetrics];

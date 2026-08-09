@@ -1,6 +1,6 @@
 import type { DigitState, SignDefinition, SignRule, TrainingPrompt } from "./types.ts";
 
-export const SIGN_BANK_VERSION = 4;
+export const SIGN_BANK_VERSION = 5;
 
 const correctPrompts: TrainingPrompt[] = [
   { id: "natural", title: "Natural position", instruction: "Make the sign naturally with your right hand facing the camera." },

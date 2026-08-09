@@ -166,6 +166,27 @@ function statePatternScore(metrics: HandMetrics, pattern: SignDefinition["stateP
   return scores.reduce((sum, value, index) => sum + value * weights[index], 0) / totalWeight;
 }
 
+export function passesSpatialGate(sign: SignDefinition, handCount: number, orientations: HandOrientationMetrics[] = []): boolean {
+  if (sign.hands !== handCount) return false;
+  const orientationRules = sign.baseRules.filter((rule) => rule.feature === "hand.roll" && rule.foundation);
+  if (!orientationRules.length) return true;
+  if (orientations.length < sign.hands) return false;
+  return orientations.slice(0, sign.hands).every((orientation) => {
+    if (orientation.confidence !== undefined && orientation.confidence < 0.35) return false;
+    return orientationRules.every((rule) => orientation.roll >= rule.min && orientation.roll <= rule.max);
+  });
+}
+
+export function spatiallyEligibleSigns(
+  signBank: SignDefinition[],
+  handCount: number,
+  orientations: HandOrientationMetrics[] = []
+): SignDefinition[] {
+  return signBank.filter((sign) =>
+    sign.recognitionType === "static" && passesSpatialGate(sign, handCount, orientations)
+  );
+}
+
 export function scoreSign(sign: SignDefinition, metrics: HandMetrics, profile?: LearnedProfile, orientation?: HandOrientationMetrics): number {
   const features = flattenMetrics(metrics, orientation);
   const orientationRules = sign.baseRules.filter((rule) => rule.feature === "hand.roll");
@@ -214,7 +235,7 @@ export function recognizeSign(signBank: SignDefinition[], metrics: HandMetrics, 
   margin: number;
 } {
   const results = signBank
-    .filter((sign) => sign.recognitionType === "static" && sign.hands === 1)
+    .filter((sign) => sign.recognitionType === "static" && passesSpatialGate(sign, 1, orientation ? [orientation] : []))
     .map((sign) => ({ sign, score: scoreSign(sign, metrics, profiles.get(sign.id), orientation) }))
     .sort((a, b) => b.score - a.score);
   const best = results[0];
@@ -232,7 +253,7 @@ export function recognizeHands(signBank: SignDefinition[], hands: HandMetrics[],
   if (!hands.length) return { match: null, results: [], margin: 0 };
 
   const results = signBank
-    .filter((sign) => sign.recognitionType === "static" && hands.length >= sign.hands)
+    .filter((sign) => sign.recognitionType === "static" && passesSpatialGate(sign, hands.length, orientations))
     .map((sign) => {
       if (sign.hands === 2) {
         const score = hands
@@ -242,9 +263,7 @@ export function recognizeHands(signBank: SignDefinition[], hands: HandMetrics[],
         return { sign, score };
       }
 
-      const bestHandScore = Math.max(...hands.map((metrics, index) => scoreSign(sign, metrics, profiles.get(sign.id), orientations[index])));
-      const extraHandPenalty = hands.length > 1 ? 0.65 : 1;
-      return { sign, score: bestHandScore * extraHandPenalty };
+      return { sign, score: scoreSign(sign, hands[0], profiles.get(sign.id), orientations[0]) };
     })
     .sort((a, b) => b.score - a.score);
 

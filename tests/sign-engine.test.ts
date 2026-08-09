@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { SIGN_BANK } from "../src/core/sign-bank.ts";
-import { buildLearnedProfile, recognizeHands, recognizeSign, scoreSign } from "../src/core/sign-engine.ts";
+import { buildLearnedProfile, recognizeHands, recognizeSign, scoreSign, spatiallyEligibleSigns } from "../src/core/sign-engine.ts";
 import { getHandOrientation } from "../src/core/hand-metrics.ts";
 import type { HandMetrics, HandOrientationMetrics, Landmark, TrainingExample } from "../src/core/types.ts";
 import { createDefaultResearcherProfile } from "../src/core/research-profile.ts";
@@ -66,11 +66,15 @@ const uprightOrientation: HandOrientationMetrics = { roll: 5 };
 const horizontalOrientation: HandOrientationMetrics = { roll: 90 };
 
 function landmarksForOrientation(orientation: "upright" | "horizontal"): Landmark[] {
-  const landmarks = Array.from({ length: 21 }, () => ({ x: 0.5, y: 0.5, z: 0 }));
-  landmarks[0] = { x: 0.5, y: 0.8, z: 0 };
-  landmarks[9] = orientation === "upright"
-    ? { x: 0.5, y: 0.4, z: 0 }
-    : { x: 0.9, y: 0.8, z: 0 };
+  const landmarks: Landmark[] = Array.from({ length: 21 }, () => ({ x: 0.5, y: 0.5, z: 0 }));
+  const wrist = { x: 0.5, y: 0.7, z: 0 };
+  const center = orientation === "upright" ? { x: 0.5, y: 0.4 } : { x: 0.8, y: 0.7 };
+  const lateral = orientation === "upright" ? { x: 1, y: 0 } : { x: 0, y: 1 };
+  landmarks[0] = wrist;
+  landmarks[5] = { x: center.x + lateral.x * 0.12, y: center.y + lateral.y * 0.12, z: 0 };
+  landmarks[9] = { x: center.x + lateral.x * 0.04, y: center.y + lateral.y * 0.04, z: 0 };
+  landmarks[13] = { x: center.x - lateral.x * 0.04, y: center.y - lateral.y * 0.04, z: 0 };
+  landmarks[17] = { x: center.x - lateral.x * 0.12, y: center.y - lateral.y * 0.12, z: 0 };
   return landmarks;
 }
 
@@ -128,9 +132,27 @@ describe("seeded BSL number recognition", () => {
     });
   });
 
-  it("measures palm roll from the wrist to the middle-finger base", () => {
+  it("measures palm roll from the wrist and complete knuckle line", () => {
     expect(getHandOrientation(landmarksForOrientation("upright")).roll).toBeCloseTo(0);
     expect(getHandOrientation(landmarksForOrientation("horizontal")).roll).toBeCloseTo(90);
+  });
+
+  it("hard-gates candidates by exact hand count before finger scoring", () => {
+    const oneHandIds = spatiallyEligibleSigns(SIGN_BANK, 1, [uprightOrientation]).map((sign) => sign.id);
+    const twoHandIds = spatiallyEligibleSigns(SIGN_BANK, 2, [uprightOrientation, uprightOrientation]).map((sign) => sign.id);
+    expect(oneHandIds).not.toContain("bsl-number-10");
+    expect(twoHandIds).toEqual(["bsl-number-10"]);
+    expect(recognizeHands(SIGN_BANK, [openHand, openHand], new Map(), [uprightOrientation, uprightOrientation]).results)
+      .toHaveLength(1);
+  });
+
+  it("hard-gates known rotation requirements before finger scoring", () => {
+    const uprightIds = spatiallyEligibleSigns(SIGN_BANK, 1, [uprightOrientation]).map((sign) => sign.id);
+    const horizontalIds = spatiallyEligibleSigns(SIGN_BANK, 1, [horizontalOrientation]).map((sign) => sign.id);
+    expect(uprightIds).toContain("bsl-number-4");
+    expect(uprightIds).not.toContain("bsl-number-9");
+    expect(horizontalIds).not.toContain("bsl-number-4");
+    expect(horizontalIds).toContain("bsl-number-9");
   });
 });
 

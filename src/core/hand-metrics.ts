@@ -1,4 +1,5 @@
 import type { DigitMetrics, DigitState, HandMetrics, HandOrientationMetrics, Landmark } from "./types.ts";
+import { getPalmFrame } from "./hand-position.ts";
 
 export const DIGIT_STATE = {
   EXTENDED: "extended",
@@ -86,11 +87,11 @@ export function getHandMetrics(landmarks: Landmark[]): HandMetrics {
 }
 
 export function getHandOrientation(landmarks: Landmark[]): HandOrientationMetrics {
-  if (landmarks.length < 10) throw new Error("Palm orientation requires wrist and middle-finger base landmarks");
-  const wrist = landmarks[0];
-  const middleBase = landmarks[9];
-  const deltaX = middleBase.x - wrist.x;
-  const deltaY = middleBase.y - wrist.y;
-  const signedRoll = Math.atan2(deltaX, -deltaY) * 180 / Math.PI;
-  return { roll: Math.abs(signedRoll) };
+  const frame = getPalmFrame(landmarks);
+  return {
+    roll: frame.roll,
+    signedAngle: frame.signedAngle,
+    cardinalAngle: frame.angle,
+    confidence: frame.confidence
+  };
 }

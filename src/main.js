@@ -134,8 +134,8 @@ function updateHandPositionIndicators(result, now) {
   }).sort((a, b) => a.screenX - b.screenX);
 
   handPositionIcons.innerHTML = readings.map((reading) => {
-    if (reading.facing === "unknown") {
-      return `<span class="hand-position-indicator is-unknown"><small><b>${reading.handedness}</b><span>UNKNOWN · ${reading.angle}°</span></small></span>`;
+    if (reading.facing === "unknown" || reading.confidence < 0.35) {
+      return `<span class="hand-position-indicator is-unknown"><small><b>${reading.handedness}</b><span>UNKNOWN</span></small></span>`;
     }
     const asset = reading.facing === "front" ? "palm_forward.png" : "back_hand.png";
     return `<span class="hand-position-indicator">
@@ -227,7 +227,7 @@ function renderRecognitionDiagnostic(recognition, orientation) {
   recognitionDiagnostic.className = `recognition-diagnostic ${state}`;
   recognitionDiagnostic.innerHTML = `
     <strong>${resultCopy}</strong>
-    <span>Palm orientation: ${orientation?.roll.toFixed(0) || "0"}° from upright</span>
+    <span>Palm frame: ${orientation?.cardinalAngle ?? 0}° · raw ${orientation?.signedAngle?.toFixed(0) ?? "0"}° · confidence ${Math.round((orientation?.confidence ?? 1) * 100)}%</span>
     <span>Selected ${selected?.sign.label || "sign"}: ${selectedScore}% · target ${selectedMinimum}%</span>
     <span>Top candidate: ${top.sign.label} ${Math.round(top.score * 100)}% · margin ${margin}%</span>
   `;
