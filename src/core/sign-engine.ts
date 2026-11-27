@@ -199,6 +199,12 @@ export function scoreSign(sign: SignDefinition, metrics: HandMetrics, profile?: 
     ? geometryScore
     : geometryScore * (0.4 + orientationScore * 0.6);
   if (!profile) return baseScore;
+  // Preserve saved evidence, but only apply it to a fixed pose when its digit
+  // pattern agrees. Matching profiles can still fine-tune continuous geometry.
+  if (sign.trainingPatternPolicy === "fixed" && (
+    profile.learnedStatePattern?.length !== sign.statePattern.length
+    || sign.statePattern.some((state, index) => profile.learnedStatePattern?.[index] !== state)
+  )) return baseScore;
 
   const positiveRulesScore = rulesScore(features, profile.rules);
   const learnedPatternScore = profile.learnedStatePattern?.length === 5

@@ -45,19 +45,25 @@ export interface SignDefinition {
   hands: 1 | 2;
   promptAsset: string;
   statePattern: DigitState[];
+  trainingPatternPolicy?: "fixed" | "learned";
   baseRules: SignRule[];
   status: "provisional" | "evidence-seeded" | "established";
   minimumScore: number;
   minimumMargin: number;
+  practice?: Partial<import("./target-practice.ts").PracticePolicy>;
   trainingProtocol: {
     correct: TrainingPrompt[];
     incorrect: TrainingPrompt[];
   };
   motion?: {
-    cycleCount: 1;
-    detector: "pinch-cycle" | "horizontal-cycle" | "vertical-cycle" | "two-hand-horizontal-cycle";
+    cycleCount: 1 | 2;
+    detector: "index-pinch" | "dual-pinch" | "horizontal-wave" | "vertical-wave";
+    baseNumber?: number;
     status: "active" | "training-required";
     durationMs: { min: number; max: number };
+    amplitude: number;
+    poseCoverage: number;
+    dropoutMs: number;
   };
 }
 

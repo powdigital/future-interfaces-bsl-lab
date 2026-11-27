@@ -22,9 +22,10 @@ export type ChainGameResult =
   | {
       type: "failed";
       state: ChainGameState;
-      received: number;
+      received: number | null;
       expected: number;
       resetNumbers: number[];
+      reason?: "wrong-number" | "timeout";
     }
   | {
       type: "ignored";
@@ -66,6 +67,22 @@ export function createChainGame(overrides: Partial<ChainGameConfig> = {}) {
   let progress = config.firstNumber - 1;
   let recognizedNumbers: number[] = [];
 
+  function failCurrentBlock(received: number | null, reason: "wrong-number" | "timeout" = "wrong-number"): ChainGameResult {
+    const previousProgress = progress;
+    const expected = progress >= config.lastNumber ? config.firstNumber : progress + 1;
+    const checkpoint = checkpointFor(previousProgress, config);
+    progress = checkpoint;
+    recognizedNumbers = sequence(config.firstNumber, progress);
+    return {
+      type: "failed",
+      state: stateFor(progress, config, recognizedNumbers),
+      received,
+      expected,
+      resetNumbers: sequence(checkpoint + 1, Math.min(previousProgress, config.lastNumber)),
+      reason
+    };
+  }
+
   function submit(received: number): ChainGameResult {
     if (config.mode === "free") {
       if (progress >= config.lastNumber) {
@@ -95,17 +112,7 @@ export function createChainGame(overrides: Partial<ChainGameConfig> = {}) {
         return { type: "ignored", state: stateFor(progress, config, recognizedNumbers), received, expected };
       }
 
-      const previousProgress = progress;
-      const checkpoint = checkpointFor(previousProgress, config);
-      progress = checkpoint;
-      recognizedNumbers = sequence(config.firstNumber, progress);
-      return {
-        type: "failed",
-        state: stateFor(progress, config, recognizedNumbers),
-        received,
-        expected,
-        resetNumbers: sequence(checkpoint + 1, Math.min(previousProgress, config.lastNumber))
-      };
+      return failCurrentBlock(received);
     }
 
     if (progress >= config.lastNumber) {
@@ -136,21 +143,14 @@ export function createChainGame(overrides: Partial<ChainGameConfig> = {}) {
       return { type: "accepted", state: stateFor(progress, config, recognizedNumbers), milestone };
     }
 
-    const previousProgress = progress;
-    const checkpoint = checkpointFor(previousProgress, config);
-    progress = checkpoint;
-    recognizedNumbers = sequence(config.firstNumber, progress);
-    return {
-      type: "failed",
-      state: stateFor(progress, config, recognizedNumbers),
-      received,
-      expected,
-      resetNumbers: sequence(checkpoint + 1, Math.min(previousProgress, config.lastNumber))
-    };
+    return failCurrentBlock(received);
   }
 
   return {
     submit,
+    timeout() {
+      return failCurrentBlock(null, "timeout");
+    },
     reset() {
       progress = config.firstNumber - 1;
       recognizedNumbers = [];

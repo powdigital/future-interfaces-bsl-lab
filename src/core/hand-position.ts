@@ -93,6 +93,13 @@ export function mirrorCardinalAngle(angle: CardinalHandAngle): CardinalHandAngle
   return angle;
 }
 
+export function mirrorSignedHandAngle(angle: number): number {
+  const mirrored = -angle;
+  if (mirrored > 180) return mirrored - 360;
+  if (mirrored <= -180) return 180;
+  return Object.is(mirrored, -0) ? 0 : mirrored;
+}
+
 export function classifyHandFacing(landmarks: Landmark[], handednessValue?: string): HandFacing {
   if (landmarks.length < 18) throw new Error("Hand facing requires wrist, index-base, and pinky-base landmarks");
   const handedness = normalizeHandedness(handednessValue);

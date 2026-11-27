@@ -12,11 +12,13 @@
         <video id="webcam" autoplay playsinline muted></video>
         <canvas id="tracking-canvas"></canvas>
 
-        <header class="masthead">
-          <h1>Hand Tracking <span>01</span></h1>
-        </header>
+        <nav class="masthead library-tabs" data-point-gesture-group aria-label="Choose sign library">
+          <button type="button" data-library="number" aria-pressed="true" title="Hold the I label here for 500 ms, or click">Numbers</button>
+          <button type="button" data-library="letter" aria-pressed="false" title="Hold the I label here for 500 ms, or click">Letters</button>
+          <button type="button" data-library="word" aria-pressed="false" title="Hold the I label here for 500 ms, or click">Words</button>
+        </nav>
 
-        <button class="diagnostics-toggle" id="diagnostics-toggle" type="button" aria-expanded="false" aria-controls="diagnostics-panel">Diagnostics</button>
+        <button class="diagnostics-toggle" id="diagnostics-toggle" data-point-gesture-group type="button" aria-expanded="false" aria-controls="diagnostics-panel">Diagnostics</button>
 
         <div class="status" id="status" role="status" aria-live="polite">
           <span class="status-dot"></span>
@@ -24,23 +26,37 @@
         </div>
 
         <div class="motion-readout" id="motion-readout" aria-live="polite" hidden>
-          <span>Number 11</span>
-          <strong id="motion-phase">Show an open pinch</strong>
-          <small id="motion-distance">Pinch gap: waiting for hand</small>
+          <span id="motion-label">Motion tracking</span>
+          <strong id="motion-phase">Hold a number pose or begin a pinch</strong>
+          <small id="motion-distance">Waiting for a complete movement</small>
           <i><b id="motion-progress"></b></i>
         </div>
 
         <div class="instruction" id="instruction">
-          <p>Place one hand in view</p>
+          <p>Calibrate your head and both hands</p>
           <button id="start-button" type="button" disabled>Start camera</button>
         </div>
 
-        <div class="initialization-gate" id="initialization-gate" role="status" aria-live="polite" hidden>
-          <span>Initialising</span>
-          <img src="/BSL_diagram_overlays/bsl1.png" alt="BSL Number 1 reference" />
-          <strong>Sign Number 1 to begin</strong>
-          <small>Hold the sign upright until it is confirmed</small>
+        <div class="initialization-gate" id="initialization-gate" hidden>
+          <div class="calibration-target" data-calibration-target="left"><span>Hand</span></div>
+          <div class="calibration-target" data-calibration-target="head"><span>Head</span></div>
+          <div class="calibration-target" data-calibration-target="right"><span>Hand</span></div>
+          <div class="framing-instructions" role="status" aria-live="polite">
+            <span>Camera calibration</span>
+            <strong id="framing-guidance">Place your head and both hands inside the boxes</strong>
+            <small>One hand in each side box. No chest tracking required.</small>
+            <div class="framing-progress"><i id="framing-progress-bar"></i></div>
+          </div>
         </div>
+        <div class="tracked-head-box" id="tracked-head-box" aria-hidden="true" hidden></div>
+        <div class="lighting-warning" id="lighting-warning" role="alert" hidden>Lighting too low</div>
+
+        <div class="learning-mode-banner" id="learning-mode-banner" role="status" aria-live="polite" hidden>
+          <strong>Learning mode</strong>
+          <small id="learning-mode-copy">Follow the prompted signs</small>
+        </div>
+        <div class="learning-mode-flash" id="learning-mode-flash" aria-hidden="true"></div>
+        <div class="distance-alert" id="distance-alert" role="alert" aria-hidden="true"></div>
 
         <div class="readout" aria-hidden="true">
           <span id="fps">00 FPS</span>
@@ -108,18 +124,15 @@
       </section>
 
       <aside class="gesture-rail" aria-label="BSL number game">
+        <div id="chain-score" data-point-gesture-group></div>
         <div class="rail-heading">
-          <span>BSL numbers</span>
-          <span>1–11 active</span>
+          <span id="library-title">BSL numbers</span>
+          <span id="library-count">1–20 active</span>
         </div>
-        <div class="chain-meter" id="chain-meter" aria-live="polite">
-          <span class="chain-label">Chain <button class="chain-reset" id="chain-reset" type="button" aria-label="Reset all game progress" title="Reset game">×</button></span>
-          <strong id="chain-count">00</strong>
-        </div>
-        <button class="recognition-mode" id="recognition-mode-toggle" type="button" aria-pressed="false">
+        <div class="recognition-mode" id="recognition-mode-status">
           <span>Recognition mode</span>
-          <strong id="recognition-mode-copy">Static 1–10</strong>
-        </button>
+          <strong id="recognition-mode-copy">Target only: 1</strong>
+        </div>
         <ol id="gesture-list">
           <li data-gesture="1" data-sign-id="bsl-number-1" role="button" tabindex="0" aria-label="Show help for BSL number 1"><span class="gesture-number">01</span><span>Number 1</span></li>
           <li data-gesture="2" data-sign-id="bsl-number-2" role="button" tabindex="0" aria-label="Show help for BSL number 2"><span class="gesture-number">02</span><span>Number 2</span></li>
@@ -132,17 +145,17 @@
           <li data-gesture="9" data-sign-id="bsl-number-9" role="button" tabindex="0" aria-label="Show help for BSL number 9"><span class="gesture-number">09</span><span>Number 9</span></li>
           <li data-gesture="10" data-sign-id="bsl-number-10" role="button" tabindex="0" aria-label="Show help for BSL number 10"><span class="gesture-number">10</span><span>Number 10</span></li>
           <li data-gesture="11" data-sign-id="bsl-number-11" data-motion-status="active" role="button" tabindex="0" aria-label="Show help for BSL number 11"><span class="gesture-number">11</span><span>Number 11</span></li>
-          <li data-gesture="12" data-sign-id="bsl-number-12" data-motion-status="training-required" role="button" tabindex="0" aria-label="Show help for BSL number 12"><span class="gesture-number">12</span><span>Number 12</span></li>
-          <li data-gesture="13" data-sign-id="bsl-number-13" data-motion-status="training-required" role="button" tabindex="0" aria-label="Show help for BSL number 13"><span class="gesture-number">13</span><span>Number 13</span></li>
-          <li data-gesture="14" data-sign-id="bsl-number-14" data-motion-status="training-required" role="button" tabindex="0" aria-label="Show help for BSL number 14"><span class="gesture-number">14</span><span>Number 14</span></li>
-          <li data-gesture="15" data-sign-id="bsl-number-15" data-motion-status="training-required" role="button" tabindex="0" aria-label="Show help for BSL number 15"><span class="gesture-number">15</span><span>Number 15</span></li>
-          <li data-gesture="16" data-sign-id="bsl-number-16" data-motion-status="training-required" role="button" tabindex="0" aria-label="Show help for BSL number 16"><span class="gesture-number">16</span><span>Number 16</span></li>
-          <li data-gesture="17" data-sign-id="bsl-number-17" data-motion-status="training-required" role="button" tabindex="0" aria-label="Show help for BSL number 17"><span class="gesture-number">17</span><span>Number 17</span></li>
-          <li data-gesture="18" data-sign-id="bsl-number-18" data-motion-status="training-required" role="button" tabindex="0" aria-label="Show help for BSL number 18"><span class="gesture-number">18</span><span>Number 18</span></li>
-          <li data-gesture="19" data-sign-id="bsl-number-19" data-motion-status="training-required" role="button" tabindex="0" aria-label="Show help for BSL number 19"><span class="gesture-number">19</span><span>Number 19</span></li>
-          <li data-gesture="20" data-sign-id="bsl-number-20" data-motion-status="training-required" role="button" tabindex="0" aria-label="Show help for BSL number 20"><span class="gesture-number">20</span><span>Number 20</span></li>
+          <li data-gesture="12" data-sign-id="bsl-number-12" data-motion-status="active" role="button" tabindex="0" aria-label="Show help for BSL number 12"><span class="gesture-number">12</span><span>Number 12</span></li>
+          <li data-gesture="13" data-sign-id="bsl-number-13" data-motion-status="active" role="button" tabindex="0" aria-label="Show help for BSL number 13"><span class="gesture-number">13</span><span>Number 13</span></li>
+          <li data-gesture="14" data-sign-id="bsl-number-14" data-motion-status="active" role="button" tabindex="0" aria-label="Show help for BSL number 14"><span class="gesture-number">14</span><span>Number 14</span></li>
+          <li data-gesture="15" data-sign-id="bsl-number-15" data-motion-status="active" role="button" tabindex="0" aria-label="Show help for BSL number 15"><span class="gesture-number">15</span><span>Number 15</span></li>
+          <li data-gesture="16" data-sign-id="bsl-number-16" data-motion-status="active" role="button" tabindex="0" aria-label="Show help for BSL number 16"><span class="gesture-number">16</span><span>Number 16</span></li>
+          <li data-gesture="17" data-sign-id="bsl-number-17" data-motion-status="active" role="button" tabindex="0" aria-label="Show help for BSL number 17"><span class="gesture-number">17</span><span>Number 17</span></li>
+          <li data-gesture="18" data-sign-id="bsl-number-18" data-motion-status="active" role="button" tabindex="0" aria-label="Show help for BSL number 18"><span class="gesture-number">18</span><span>Number 18</span></li>
+          <li data-gesture="19" data-sign-id="bsl-number-19" data-motion-status="active" role="button" tabindex="0" aria-label="Show help for BSL number 19"><span class="gesture-number">19</span><span>Number 19</span></li>
+          <li data-gesture="20" data-sign-id="bsl-number-20" data-motion-status="active" role="button" tabindex="0" aria-label="Show help for BSL number 20"><span class="gesture-number">20</span><span>Number 20</span></li>
         </ol>
-        <p class="rail-note">Complete the focused block. Dim numbers are deprioritized.</p>
+        <p class="rail-note">Only the highlighted sign is checked. Prepare at your own pace. Then hold for a static sign or complete the movement.</p>
         <div class="chain-reward" id="chain-reward" role="status" aria-live="assertive" aria-hidden="true">
           <span>Chain complete</span>
           <strong>Well done</strong>

@@ -1,0 +1,8 @@
+#chain-score { flex-shrink: 0; }
+.chain-meter { display: flex; align-items: center; justify-content: space-between; min-height: 42px; padding: 0 0 12px; color: #fff; text-transform: uppercase; letter-spacing: .14em; font-size: 9px; }
+.chain-meter strong { color: #fff; font-size: 22px; font-weight: 400; letter-spacing: .04em; }
+.chain-meter.is-chaining { color: var(--signal); }
+.chain-meter.is-chaining strong { color: var(--signal); text-shadow: 0 0 12px rgba(207,255,56,.35); }
+.chain-label { display: inline-flex; align-items: center; gap: 7px; }
+.chain-reset { display: inline-grid; place-items: center; width: 20px; height: 20px; padding: 0; border: 1px solid rgba(255,64,64,.55); border-radius: 50%; background: transparent; color: #ff5050; font-size: 14px; line-height: 1; cursor: pointer; }
+.chain-reset:hover, .chain-reset:focus-visible { border-color: #ff4040; background: rgba(255,64,64,.12); color: #fff; outline: none; }

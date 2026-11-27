@@ -1,6 +1,6 @@
 import type { DigitState, SignDefinition, SignRule, TrainingPrompt } from "./types.ts";
 
-export const SIGN_BANK_VERSION = 5;
+export const SIGN_BANK_VERSION = 8;
 
 const correctPrompts: TrainingPrompt[] = [
   { id: "natural", title: "Natural position", instruction: "Make the sign naturally with your right hand facing the camera." },
@@ -15,14 +15,6 @@ const uprightHandRule: SignRule = {
   min: 0,
   max: 35,
   weight: 6,
-  foundation: true
-};
-
-const horizontalHandRule: SignRule = {
-  feature: "hand.roll",
-  min: 55,
-  max: 125,
-  weight: 7,
   foundation: true
 };
 
@@ -69,8 +61,8 @@ const incorrectPrompts: Record<number, TrainingPrompt[]> = {
   ],
   9: [
     { id: "number-8", title: "Neighboring number 8", instruction: "Sign number 8 clearly. It must not count as 9." },
-    { id: "number-4", title: "Neighboring number 4", instruction: "Sign number 4 clearly. Its thumb position must distinguish it from 9." },
-    { id: "number-5", title: "Neighboring number 5", instruction: "Sign number 5 clearly. Its open thumb must not count as 9." }
+    { id: "number-4", title: "Neighboring number 4", instruction: "Sign number 4 with thumb folded and pinky extended. It must not count as 9." },
+    { id: "number-5", title: "Neighboring number 5", instruction: "Open all five digits. The extended pinky must not count as 9." }
   ],
   10: [
     { id: "number-9", title: "Neighboring number 9", instruction: "Sign number 9 clearly. It must not count as 10." },
@@ -117,31 +109,40 @@ const motionIncorrectPrompts: TrainingPrompt[] = [
 function motionNumber(
   value: number,
   detector: NonNullable<SignDefinition["motion"]>["detector"],
-  hands: 1 | 2 = 1,
-  active = false
+  statePattern: DigitState[],
+  options: {
+    baseNumber?: number;
+    cycleCount?: 1 | 2;
+    amplitude?: number;
+    durationMs?: { min: number; max: number };
+  } = {}
 ): SignDefinition {
   return {
     id: `bsl-number-${value}`,
     label: `Number ${value}`,
     shortLabel: String(value),
     category: "number",
-    recognitionType: hands === 2 ? "two-hand-motion" : "motion",
-    hands,
+    recognitionType: "motion",
+    hands: 1,
     promptAsset: `/BSL_diagram_overlays/bsl${value}.png`,
-    statePattern: [],
+    statePattern,
     baseRules: [],
     status: "provisional",
-    minimumScore: 0.82,
-    minimumMargin: 0.06,
+    minimumScore: 0.9,
+    minimumMargin: 0.08,
     trainingProtocol: {
       correct: motionCorrectPrompts,
       incorrect: motionIncorrectPrompts
     },
     motion: {
-      cycleCount: 1,
+      cycleCount: options.cycleCount || 1,
       detector,
-      status: active ? "active" : "training-required",
-      durationMs: { min: 180, max: 1600 }
+      baseNumber: options.baseNumber,
+      status: "active",
+      durationMs: options.durationMs || { min: 120, max: 4000 },
+      amplitude: options.amplitude || 0.32,
+      poseCoverage: 0.7,
+      dropoutMs: 300
     }
   };
 }
@@ -174,21 +175,60 @@ export const SIGN_BANK: SignDefinition[] = [
   number(6, ["extended", "folded", "folded", "folded", "folded"]),
   number(7, ["extended", "extended", "folded", "folded", "folded"]),
   number(8, ["extended", "extended", "extended", "folded", "folded"]),
-  number(9, ["ambiguous", "extended", "extended", "extended", "extended"], [
-    horizontalHandRule,
-    { feature: "thumb.reach", min: -0.8, max: -0.35, weight: 5, foundation: false }
-  ]),
+  {
+    ...number(9, ["extended", "extended", "extended", "extended", "folded"]),
+    // Keep obsolete four-fingers/thumb-tucked calibration from undoing this correction.
+    trainingPatternPolicy: "fixed"
+  },
   number(10, ["extended", "extended", "extended", "extended", "extended"], [], 2),
-  motionNumber(11, "pinch-cycle", 1, true),
-  motionNumber(12, "pinch-cycle"),
-  motionNumber(13, "horizontal-cycle"),
-  motionNumber(14, "horizontal-cycle"),
-  motionNumber(15, "horizontal-cycle"),
-  motionNumber(16, "vertical-cycle"),
-  motionNumber(17, "vertical-cycle"),
-  motionNumber(18, "vertical-cycle"),
-  motionNumber(19, "vertical-cycle"),
-  motionNumber(20, "two-hand-horizontal-cycle", 2)
+  motionNumber(11, "index-pinch", ["ambiguous", "extended", "folded", "folded", "folded"]),
+  motionNumber(12, "dual-pinch", ["ambiguous", "extended", "extended", "folded", "folded"]),
+  motionNumber(13, "horizontal-wave", ["folded", "extended", "extended", "extended", "folded"], {
+    baseNumber: 3,
+    cycleCount: 2,
+    amplitude: 0.4,
+    durationMs: { min: 500, max: 4000 }
+  }),
+  motionNumber(14, "horizontal-wave", ["folded", "extended", "extended", "extended", "extended"], {
+    baseNumber: 4,
+    cycleCount: 2,
+    amplitude: 0.4,
+    durationMs: { min: 500, max: 4000 }
+  }),
+  motionNumber(15, "horizontal-wave", ["extended", "extended", "extended", "extended", "extended"], {
+    baseNumber: 5,
+    cycleCount: 2,
+    amplitude: 0.4,
+    durationMs: { min: 500, max: 4000 }
+  }),
+  motionNumber(16, "vertical-wave", ["extended", "folded", "folded", "folded", "folded"], {
+    baseNumber: 6,
+    cycleCount: 2,
+    amplitude: 0.32,
+    durationMs: { min: 500, max: 4000 }
+  }),
+  motionNumber(17, "vertical-wave", ["extended", "extended", "folded", "folded", "folded"], {
+    baseNumber: 7,
+    cycleCount: 2,
+    amplitude: 0.32,
+    durationMs: { min: 500, max: 4000 }
+  }),
+  motionNumber(18, "vertical-wave", ["extended", "extended", "extended", "folded", "folded"], {
+    baseNumber: 8,
+    cycleCount: 2,
+    amplitude: 0.32,
+    durationMs: { min: 500, max: 4000 }
+  }),
+  motionNumber(19, "vertical-wave", ["ambiguous", "extended", "extended", "extended", "extended"], {
+    baseNumber: 9,
+    cycleCount: 2,
+    amplitude: 0.32,
+    durationMs: { min: 500, max: 4000 }
+  }),
+  motionNumber(20, "index-pinch", ["ambiguous", "extended", "folded", "folded", "folded"], {
+    cycleCount: 2,
+    durationMs: { min: 500, max: 4000 }
+  })
 ];
 
 export function getSign(signId: string): SignDefinition | null {

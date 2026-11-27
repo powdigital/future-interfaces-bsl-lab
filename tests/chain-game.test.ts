@@ -77,6 +77,28 @@ describe("five-number checkpoint game", () => {
     if (eleven.type === "accepted") expect(eleven.state.complete).toBe(true);
   });
 
+  it("rewards motion-number blocks through Number 20", () => {
+    const game = createChainGame({ lastNumber: 20, mode: "block" });
+    Array.from({ length: 19 }, (_, index) => index + 1).forEach((number) => game.submit(number));
+    const result = game.submit(20);
+
+    expect(result.type).toBe("accepted");
+    if (result.type === "accepted") {
+      expect(result.state.complete).toBe(true);
+      expect(result.milestone).toEqual([16, 17, 18, 19, 20]);
+    }
+  });
+
+  it("returns to checkpoint 15 after moving backwards in the final block", () => {
+    const game = createChainGame({ lastNumber: 20, mode: "block" });
+    Array.from({ length: 18 }, (_, index) => index + 1).forEach((number) => game.submit(number));
+    const result = game.submit(17);
+
+    expect(result.type).toBe("failed");
+    expect(result.state.progress).toBe(15);
+    expect(result.state.expected).toBe(16);
+  });
+
   it("counts successful recognitions in any order in free practice mode", () => {
     const game = createChainGame({ lastNumber: 20, mode: "free" });
     [1, 2, 4, 6].forEach((number) => game.submit(number));
@@ -140,5 +162,24 @@ describe("five-number checkpoint game", () => {
     expect(state.expected).toBe(1);
     expect(state.checkpoint).toBe(0);
     expect(state.recognizedNumbers).toEqual([]);
+  });
+
+  it("times out to zero in the first block and keeps completed checkpoints", () => {
+    const firstBlock = createChainGame({ lastNumber: 20, mode: "block" });
+    [1, 2, 3].forEach((number) => firstBlock.submit(number));
+    const firstTimeout = firstBlock.timeout();
+    expect(firstTimeout.type).toBe("failed");
+    if (firstTimeout.type === "failed") {
+      expect(firstTimeout.reason).toBe("timeout");
+      expect(firstTimeout.received).toBeNull();
+    }
+    expect(firstTimeout.state.progress).toBe(0);
+
+    const secondBlock = createChainGame({ lastNumber: 20, mode: "block" });
+    [1, 2, 3, 4, 5, 6, 7].forEach((number) => secondBlock.submit(number));
+    const secondTimeout = secondBlock.timeout();
+    expect(secondTimeout.state.progress).toBe(5);
+    expect(secondTimeout.state.recognizedNumbers).toEqual([1, 2, 3, 4, 5]);
+    if (secondTimeout.type === "failed") expect(secondTimeout.resetNumbers).toEqual([6, 7]);
   });
 });

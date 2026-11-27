@@ -5,10 +5,14 @@ export interface NumberFocusRange {
   maximum: number;
 }
 
+export function motionNumbersUnlocked(progress: number): boolean {
+  return progress >= 10;
+}
+
 export function numberFocusRange(progress: number): NumberFocusRange {
-  return progress >= 5
-    ? { minimum: 6, maximum: 10 }
-    : { minimum: 1, maximum: 5 };
+  const block = Math.min(3, Math.max(0, Math.floor(progress / 5)));
+  const minimum = block * 5 + 1;
+  return { minimum, maximum: minimum + 4 };
 }
 
 export function focusedStaticNumbers(signBank: SignDefinition[], progress: number): SignDefinition[] {

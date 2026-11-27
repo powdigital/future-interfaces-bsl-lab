@@ -1,4 +1,5 @@
 import {
+  FaceLandmarker,
   FilesetResolver,
   HandLandmarker
 } from "@mediapipe/tasks-vision";
@@ -6,10 +7,25 @@ import "./styles.css";
 import { DIGIT_STATE, getHandMetrics, getHandOrientation } from "./core/hand-metrics.ts";
 import { SIGN_BANK, getSign } from "./core/sign-bank.ts";
 import { buildLearnedProfile, recognizeHands } from "./core/sign-engine.ts";
-import { createChainGame } from "./core/chain-game.ts";
-import { createPinchCycleRecognizer } from "./core/motion-engine.ts";
-import { focusedStaticNumbers, numberFocusRange } from "./core/recognition-focus.ts";
-import { getHandPosition, mirrorCardinalAngle } from "./core/hand-position.ts";
+import { createLibraryGames } from "./core/library-games.ts";
+import { mountChainScore } from "./components/chain-score.ts";
+import { createPointGestureReset } from "./components/point-gesture-reset.ts";
+import "./components/chain-score.css";
+import { createTargetPractice } from "./core/target-practice.ts";
+import { createTargetMotion, motionStartMatches } from "./core/target-motion.ts";
+import { practiceLibrary } from "./core/practice-library.ts";
+import { WORD_PLACEHOLDERS } from "./core/word-library.ts";
+import { createLibraryDwell, easeDwellProgress, indexLabelPosition, INDEX_LABEL_OFFSET, MIN_BUTTON_INTENT_MS } from "./core/library-navigation.ts";
+import { createLearningMode, isLearningCheckpoint, isTwoThumbsUp } from "./core/learning-mode.ts";
+import { motionObservationFromLandmarks } from "./core/motion-engine.ts";
+import { getDistanceGuidance, handOverlapsFace } from "./core/spatial-safety.ts";
+import {
+  CALIBRATION_TARGETS, MIN_CALIBRATION_LUMINANCE, approximateHeadBounds,
+  landmarkBounds, projectBox, meanLuminance, evaluateCameraCalibration,
+  createCalibrationHold, createHeadBoxTracker
+} from "./core/camera-calibration.ts";
+import { numberFocusRange } from "./core/recognition-focus.ts";
+import { getHandPosition, getPalmFrame, mirrorCardinalAngle, mirrorSignedHandAngle } from "./core/hand-position.ts";
 import { APP_VERSION, createSessionId, PRIMARY_RESEARCHER_ID } from "./core/research-profile.ts";
 import {
   addExample,
@@ -32,19 +48,29 @@ const fpsCopy = document.querySelector("#fps");
 const handCountCopy = document.querySelector("#hand-count");
 const handPositionIcons = document.querySelector("#hand-position-icons");
 const initializationGate = document.querySelector("#initialization-gate");
+const framingGuidance = document.querySelector("#framing-guidance");
+const framingProgressBar = document.querySelector("#framing-progress-bar");
+const trackedHeadBox = document.querySelector("#tracked-head-box");
+const lightingWarning = document.querySelector("#lighting-warning");
+const stage = document.querySelector(".stage");
+const learningModeBanner = document.querySelector("#learning-mode-banner");
+const learningModeCopy = document.querySelector("#learning-mode-copy");
+const learningModeFlash = document.querySelector("#learning-mode-flash");
+const distanceAlert = document.querySelector("#distance-alert");
 const gestureList = document.querySelector("#gesture-list");
+const libraryTabs = [...document.querySelectorAll("[data-library]")];
+const libraryButtonGroup = document.querySelector(".library-tabs");
+const libraryTitle = document.querySelector("#library-title");
+const libraryCount = document.querySelector("#library-count");
 const gestureResponse = document.querySelector("#gesture-response");
 const responseImage = document.querySelector("#response-image");
-const chainMeter = document.querySelector("#chain-meter");
-const chainCountCopy = document.querySelector("#chain-count");
-const chainResetButton = document.querySelector("#chain-reset");
 const chainReward = document.querySelector("#chain-reward");
 const chainRewardCopy = document.querySelector("#chain-reward-copy");
 const chainFailure = document.querySelector("#chain-failure");
 const chainFailureCopy = document.querySelector("#chain-failure-copy");
-const recognitionModeToggle = document.querySelector("#recognition-mode-toggle");
 const recognitionModeCopy = document.querySelector("#recognition-mode-copy");
 const motionReadout = document.querySelector("#motion-readout");
+const motionLabelCopy = document.querySelector("#motion-label");
 const motionPhaseCopy = document.querySelector("#motion-phase");
 const motionDistanceCopy = document.querySelector("#motion-distance");
 const motionProgressBar = document.querySelector("#motion-progress");
@@ -78,30 +104,207 @@ const CONNECTIONS = [
 ];
 
 let handLandmarker;
+let faceLandmarker;
 let stream;
 let lastVideoTime = -1;
 let frameCount = 0;
 let fpsStartedAt = performance.now();
 let lastDetectedHands = [];
-let lastTriggeredGesture = null;
-let lastTriggeredAt = 0;
 let audioContext;
 let responseTimer;
 let rewardTimer;
 let failureTimer;
 let delayedFailureTimer;
-let gestureHistory = [];
+let learningActivationHistory = [];
+let learningActivationArmed = true;
+let learningPromptTimer;
+let recentLearningFrames = [];
+let lastFaceCheckAt = 0;
+let faceLandmarks = [];
+let lastLightingCheckAt = -Infinity;
+let lightingLevel = 0;
+let lightingIsLow = true;
+const lightingCanvas = document.createElement("canvas");
+lightingCanvas.width = 96;
+lightingCanvas.height = 54;
+const lightingContext = lightingCanvas.getContext("2d", { willReadFrequently: true });
+const framingHold = createCalibrationHold();
+const headBoxTracker = createHeadBoxTracker(500);
+let lastDistanceCheckAt = 0;
+let distanceAlertTimer;
 let recordingSession = null;
 let selectedExamples = [];
 let guidedSession = null;
-let recognitionMode = "static";
 let isInitialized = false;
 let lastHandPositionUpdateAt = 0;
 const learnedProfiles = new Map();
 const researchSessionId = createSessionId();
-const chainGame = createChainGame({ lastNumber: 10, mode: "block" });
-const pinchCycleRecognizer = createPinchCycleRecognizer();
+const libraryGames = createLibraryGames();
+const chainGame = libraryGames.get("number", 20);
+const practice = createTargetPractice();
+let targetMotion = null;
+let currentPracticeKey = null;
+let staticAnchors = null;
+let practiceFeedbackUntil = 0;
+let lastPracticeFrameAt = null;
+let learningFinishTimer;
+const learningMode = createLearningMode(20, 5);
 const HAND_POSITION_UPDATE_MS = 500;
+const libraryDwell = createLibraryDwell();
+const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+let activeLibrary = "number";
+let librarySwitching = false;
+let libraryFillTimer;
+let libraryFlashTimer;
+let manualSelectionTimer;
+let isLibraryNavigationActive = false;
+const chainScore = mountChainScore(document.querySelector("#chain-score"), resetGameProgress);
+const pointGestureReset = createPointGestureReset(document.querySelector(".experiment"));
+// Wrapped selector rows keep their neighbouring diagnostic control below them.
+const selectorLayout = new ResizeObserver(() => {
+  stage.style.setProperty("--selector-height", `${libraryButtonGroup.offsetHeight}px`);
+});
+selectorLayout.observe(libraryButtonGroup);
+
+function selectedLibraryGame() {
+  const count = practiceLibrary(SIGN_BANK).filter(entry => entry.category === activeLibrary).length;
+  return libraryGames.get(activeLibrary, count);
+}
+
+function clearCountdownDisplay() {
+  document.querySelectorAll("#gesture-list li.is-timed").forEach((item) => {
+    item.classList.remove("is-timed", "is-timer-bonus");
+    item.style.removeProperty("--timer-progress");
+  });
+}
+
+function resetPracticeTarget() {
+  currentPracticeKey = null;
+  targetMotion = null;
+  staticAnchors = null;
+  lastPracticeFrameAt = null;
+  practice.reset();
+  clearCountdownDisplay();
+}
+
+function showLearningPrompt(number, delay = 0) {
+  clearTimeout(learningPromptTimer);
+  learningPromptTimer = setTimeout(() => {
+    recentLearningFrames = [];
+    const sign = getSign(`bsl-number-${number}`);
+    if (!sign) return;
+    clearTimeout(responseTimer);
+    responseImage.src = sign.promptAsset;
+    responseImage.alt = `Learn BSL ${sign.label}`;
+    responseImage.classList.toggle("is-inverted", sign.id === "bsl-number-6");
+    gestureResponse.classList.remove("is-pinging", "is-learning-close");
+    gestureResponse.classList.add("is-learning-prompt");
+    gestureResponse.setAttribute("aria-hidden", "false");
+  }, delay);
+}
+
+function setLearningPromptProximity(isClose) {
+  if (!learningMode.getState().active) return;
+  gestureResponse.classList.toggle("is-learning-close", isClose);
+}
+
+async function saveLearningEvidence(sign) {
+  if (lightingIsLow || !isInitialized || sign.hands !== 1 || recentLearningFrames.length < 8) return;
+  const evidence = recentLearningFrames.slice(-12);
+  const example = {
+    signId: sign.id,
+    kind: "positive",
+    recordedAt: new Date().toISOString(),
+    frames: evidence.map((frame) => frame.metrics),
+    landmarkFrames: evidence.map((frame) => frame.landmarks),
+    evidenceFormat: "hand-landmarks-and-metrics-v1",
+    containsVideo: false,
+    containsAudio: false,
+    researcherId: PRIMARY_RESEARCHER_ID,
+    sessionId: researchSessionId,
+    appVersion: APP_VERSION,
+    handedness: "unknown",
+    protocolStepId: "game-learning-mode"
+  };
+  try {
+    await addExample(example);
+    if (sign.recognitionType === "static") {
+      const profile = buildLearnedProfile(sign.id, await getExamples(sign.id));
+      if (profile) {
+        await saveProfile(profile);
+        learnedProfiles.set(sign.id, profile);
+      }
+    }
+  } catch (error) {
+    console.error("Unable to save learning-mode evidence", error);
+  }
+}
+
+function startLearningMode() {
+  const state = learningMode.start(chainGame.getState().progress);
+  if (!state.active || state.expected === null) return;
+  clearCountdownDisplay();
+  clearStaticGestureCandidate();
+  resetPracticeTarget();
+  learningActivationHistory = [];
+  learningActivationArmed = false;
+  recentLearningFrames = [];
+  learningModeBanner.hidden = false;
+  learningModeFlash.classList.remove("is-flashing");
+  void learningModeFlash.offsetWidth;
+  learningModeFlash.classList.add("is-flashing");
+  learningModeCopy.textContent = `Learn numbers ${state.checkpoint + 1} to ${state.checkpoint + 5}`;
+  recognitionModeCopy.textContent = "Learning mode";
+  showLearningPrompt(state.expected);
+}
+
+function updateDistanceAlert(hands, now, viewport) {
+  if (!isInitialized || lightingIsLow) return;
+  if (now - lastDistanceCheckAt < 3000) return;
+  lastDistanceCheckAt = now;
+  const guidance = getDistanceGuidance(hands, {}, viewport);
+  if (!guidance) return;
+  clearTimeout(distanceAlertTimer);
+  distanceAlert.textContent = guidance === "move-back" ? "Move back" : "Move closer";
+  distanceAlert.setAttribute("aria-hidden", "false");
+  distanceAlert.classList.remove("is-showing");
+  void distanceAlert.offsetWidth;
+  distanceAlert.classList.add("is-showing");
+  distanceAlertTimer = setTimeout(() => {
+    distanceAlert.classList.remove("is-showing");
+    distanceAlert.setAttribute("aria-hidden", "true");
+  }, 2000);
+}
+
+function finishLearningMode(state) {
+  learningModeBanner.hidden = true;
+  gestureResponse.classList.remove("is-learning-prompt", "is-learning-close", "is-pinging");
+  gestureResponse.setAttribute("aria-hidden", "true");
+  learningActivationHistory = [];
+  recentLearningFrames = [];
+  clearStaticGestureCandidate();
+  resetPracticeTarget();
+  renderChainState(chainGame.getState());
+  prepareNextTarget(chainGame.getState());
+  setStatus(`Learning complete. Checkpoint ${state.checkpoint} secured`, "is-live");
+}
+
+function updateLearningActivation(handMetrics) {
+  if (activeLibrary !== "number" || librarySwitching || isLibraryNavigationActive) return;
+  const canStart = !learningMode.getState().active && isLearningCheckpoint(chainGame.getState().progress);
+  const poseMatches = isTwoThumbsUp(handMetrics);
+  if (!poseMatches) learningActivationArmed = true;
+  learningActivationHistory.push(canStart && learningActivationArmed && poseMatches);
+  if (learningActivationHistory.length > 12) learningActivationHistory.shift();
+  const confirmed = learningActivationHistory.length === 12
+    && learningActivationHistory.filter(Boolean).length >= 10;
+  if (confirmed) startLearningMode();
+}
+
+function prepareNextTarget() {
+  // A new target starts in preparation, never with an already-running deadline.
+  resetPracticeTarget();
+}
 
 const FINGERTIPS = new Set([4, 8, 12, 16, 20]);
 const FINGER_LABELS = [
@@ -150,48 +353,306 @@ function completeInitialization(now) {
   if (isInitialized) return;
   isInitialized = true;
   initializationGate.hidden = true;
+  stage.classList.remove("is-calibrating");
   lastHandPositionUpdateAt = now - HAND_POSITION_UPDATE_MS;
-  gestureHistory = [];
-  lastTriggeredGesture = null;
-  showGestureResponse("bsl-number-1", true);
-  setStatus("Initialisation complete. Hand direction active", "is-live");
+  setStatus("Calibration complete. Ready to play", "is-live");
 }
 
-const MOTION_PHASE_COPY = {
-  waiting: "Open thumb and index",
-  ready: "Ready. Begin one pinch",
-  closing: "Close the pinch",
-  cooldown: "Number 11 recognized. Release to reset"
-};
-
-function setRecognitionMode(mode) {
-  recognitionMode = mode;
-  const isMotion = mode === "motion";
-  recognitionModeToggle.setAttribute("aria-pressed", String(isMotion));
-  recognitionModeCopy.textContent = isMotion ? "Motion 11" : "Static 1–10";
-  motionReadout.hidden = !isMotion;
-  gestureHistory = [];
-  lastTriggeredGesture = null;
-  pinchCycleRecognizer.reset();
-  motionPhaseCopy.textContent = MOTION_PHASE_COPY.waiting;
-  motionDistanceCopy.textContent = "Pinch gap: waiting for hand";
-  motionProgressBar.style.width = "0%";
-  document.querySelectorAll("#gesture-list li.is-active").forEach((item) => item.classList.remove("is-active"));
+function placeFramingBox(element, box) {
+  element.style.left = `${box.left * 100}%`;
+  element.style.top = `${box.top * 100}%`;
+  element.style.width = `${(box.right - box.left) * 100}%`;
+  element.style.height = `${(box.bottom - box.top) * 100}%`;
 }
 
-function updateMotionRecognition(hands, now) {
-  const motionResult = hands.length === 1
-    ? pinchCycleRecognizer.updateLandmarks(hands[0], now)
-    : pinchCycleRecognizer.handLost();
-  motionPhaseCopy.textContent = hands.length > 1 ? "Show one hand only" : MOTION_PHASE_COPY[motionResult.phase];
-  motionDistanceCopy.textContent = motionResult.pinchDistance === null
-    ? "Pinch gap: waiting for hand"
-    : `Pinch gap: ${motionResult.pinchDistance.toFixed(2)}`;
-  motionProgressBar.style.width = `${Math.round(motionResult.progress * 100)}%`;
-  const numberEleven = document.querySelector('#gesture-list li[data-sign-id="bsl-number-11"]');
-  numberEleven?.classList.toggle("is-active", motionResult.phase !== "waiting" && motionResult.phase !== "cooldown");
-  if (!motionResult.detected || !motionResult.signId) return;
-  showGestureResponse(motionResult.signId, true);
+document.querySelectorAll("[data-calibration-target]").forEach((element) => {
+  placeFramingBox(element, CALIBRATION_TARGETS[element.dataset.calibrationTarget]);
+});
+
+function updateLighting(hands, now) {
+  if (now - lastLightingCheckAt < 250) return;
+  lastLightingCheckAt = now;
+  // Read original camera pixels, not the deliberately dimmed display or screenshots.
+  lightingContext.drawImage(video, 0, 0, 96, 54);
+  const pixels = lightingContext.getImageData(0, 0, 96, 54).data;
+  const regions = [landmarkBounds(faceLandmarks), ...hands.map(landmarkBounds)]
+    .filter((box) => box && box.right > box.left && box.bottom > box.top);
+  if (!regions.length) regions.push({ left: .25, top: .1, right: .75, bottom: .8 });
+  lightingLevel = Math.min(...regions.map((region) => meanLuminance(pixels, 96, 54, region)));
+  lightingIsLow = lightingLevel < MIN_CALIBRATION_LUMINANCE;
+  lightingWarning.hidden = !lightingIsLow;
+  if (lightingIsLow) {
+    framingHold.reset();
+    clearStaticGestureCandidate();
+    targetMotion?.reset();
+    recentLearningFrames = [];
+    if (recordingSession) {
+      stopGuidedTraining();
+      recordingStatus.textContent = "Lighting too low. Unfinished capture discarded; improve the lighting and retry.";
+      recordingProgressBar.style.width = "0%";
+    }
+  }
+}
+
+function updateCameraFraming(hands, viewport, now) {
+  const rawHead = approximateHeadBounds(faceLandmarks);
+  const head = rawHead ? projectBox(rawHead, viewport) : null;
+  const displayBox = headBoxTracker.update(lightingIsLow ? null : head, now);
+  trackedHeadBox.hidden = !displayBox;
+  if (displayBox) placeFramingBox(trackedHeadBox, displayBox);
+  if (isInitialized) return;
+  const handBoxes = hands.map(landmarkBounds).filter(Boolean).map((box) => projectBox(box, viewport));
+  const framing = evaluateCameraCalibration({ head, hands: handBoxes, luminance: lightingLevel, faceTrackerReady: !!faceLandmarker });
+  const hold = framingHold.update(framing.ready, now);
+  framingGuidance.textContent = framing.message;
+  framingProgressBar.style.width = `${hold.progress * 100}%`;
+  document.querySelectorAll("[data-calibration-target]").forEach((element) => {
+    element.classList.toggle("is-ready", framing[`${element.dataset.calibrationTarget}Ready`]);
+  });
+  setStatus(framing.message, framing.lightingLow ? "is-error" : "");
+  if (hold.complete) completeInitialization(now);
+}
+
+function clearStaticGestureCandidate() {
+  document.querySelectorAll("#gesture-list li.is-active").forEach((item) => {
+    if (getSign(item.dataset.signId)?.recognitionType === "static") item.classList.remove("is-active");
+  });
+}
+
+function fillLibrary() {
+  const entries = practiceLibrary(SIGN_BANK).filter(entry => entry.category === activeLibrary);
+  const fragment = document.createDocumentFragment();
+  let previousGroup = null;
+  for (const [index, entry] of entries.entries()) {
+    if (entry.group && entry.group !== previousGroup) {
+      const groupRow = document.createElement("li");
+      groupRow.className = "library-group";
+      const heading = document.createElement("h3");
+      entry.group.split("/").forEach((part, partIndex) => {
+        if (partIndex) heading.append("/", document.createElement("wbr"));
+        heading.append(part);
+      });
+      groupRow.append(heading);
+      fragment.append(groupRow);
+      previousGroup = entry.group;
+    }
+    const row = document.createElement("li");
+    row.dataset.signId = entry.id;
+    const number = document.createElement("span");
+    number.className = "gesture-number";
+    number.textContent = String(index + 1).padStart(2, "0");
+    const label = document.createElement("span");
+    label.textContent = entry.label;
+    row.append(number, label);
+    if (entry.available) {
+      row.dataset.gesture = getSign(entry.id).shortLabel;
+      if (getSign(entry.id).motion) row.dataset.motionStatus = "active";
+      row.setAttribute("role", "button");
+      row.tabIndex = 0;
+      row.setAttribute("aria-label", `Show help for BSL ${entry.label}`);
+    } else {
+      row.classList.add("is-unavailable");
+      row.setAttribute("aria-disabled", "true");
+      row.title = entry.reason || "Training required";
+      row.setAttribute("aria-label", `${number.textContent} ${entry.label}: not trained`);
+    }
+    fragment.append(row);
+  }
+  gestureList.replaceChildren(fragment);
+  gestureList.scrollTop = 0;
+  librarySwitching = false;
+  gestureList.setAttribute("aria-busy", "false");
+  renderChainState(chainGame.getState());
+}
+
+function switchLibrary(category) {
+  if (pointGestureReset.isBlocked(libraryButtonGroup)) return;
+  if (!["number", "letter", "word"].includes(category)) return;
+  libraryGames.activate(category);
+  clearTimeout(libraryFillTimer);
+  clearTimeout(learningFinishTimer);
+  clearTimeout(learningPromptTimer);
+  clearTimeout(responseTimer);
+  clearTimeout(rewardTimer);
+  clearTimeout(failureTimer);
+  clearTimeout(delayedFailureTimer);
+  stopGuidedTraining();
+  learningMode.reset();
+  learningModeBanner.hidden = true;
+  learningActivationHistory = [];
+  learningActivationArmed = true;
+  recentLearningFrames = [];
+  resetPracticeTarget();
+  gestureResponse.classList.remove("is-pinging", "is-learning-prompt", "is-learning-close");
+  gestureResponse.setAttribute("aria-hidden", "true");
+  for (const overlay of [chainReward, chainFailure, distanceAlert]) {
+    overlay.classList.remove("is-showing");
+    overlay.setAttribute("aria-hidden", "true");
+  }
+  motionReadout.hidden = true;
+  diagnosticsPanel.hidden = true;
+  diagnosticsToggle.setAttribute("aria-expanded", "false");
+  activeLibrary = category;
+  librarySwitching = true;
+  libraryTabs.forEach(tab => tab.setAttribute("aria-pressed", String(tab.dataset.library === category)));
+  clearTimeout(libraryFlashTimer);
+  libraryTabs.forEach(tab => tab.classList.remove("is-activation-flash"));
+  const selectedTab = libraryTabs.find(tab => tab.dataset.library === category);
+  void selectedTab.offsetWidth;
+  selectedTab.classList.add("is-activation-flash");
+  libraryFlashTimer = setTimeout(() => selectedTab.classList.remove("is-activation-flash"), 250);
+  const numbers = category === "number";
+  const words = category === "word";
+  libraryTitle.textContent = numbers ? "BSL numbers" : words ? "BSL words" : "BSL letters";
+  libraryCount.textContent = numbers ? "1–20 active" : words ? `${WORD_PLACEHOLDERS.length} placeholders` : "A–Z · Not trained";
+  document.querySelector(".gesture-rail").setAttribute("aria-label", numbers ? "BSL number game" : words ? "BSL word library" : "BSL letter library");
+  recognitionModeCopy.textContent = numbers ? "Preparing number library" : words ? "Word placeholders" : "Letter rules pending";
+  document.querySelector(".rail-note").textContent = numbers
+    ? "Only the highlighted sign is checked. Prepare at your own pace. Then hold for a static sign or complete the movement."
+    : words ? `${WORD_PLACEHOLDERS.length} word placeholders for user testing. Sign recognition is not active.`
+      : "A–Z library. Letter rules and diagrams still need to be added. Number recognition is paused.";
+  renderChainState(chainGame.getState());
+  // Clear at the dwell trigger, then allow an empty paint before repopulating.
+  gestureList.replaceChildren();
+  gestureList.setAttribute("aria-busy", "true");
+  libraryFillTimer = setTimeout(fillLibrary, 100);
+  libraryDwell.suspend(performance.now());
+  pointGestureReset.begin(libraryButtonGroup);
+  libraryTabs.forEach(tab => {
+    tab.classList.remove("is-dwelling");
+    tab.style.setProperty("--dwell-progress", 0);
+  });
+}
+
+function updateLibraryNavigation(hands, results, viewport, now) {
+  if (pointGestureReset.isBlocked(libraryButtonGroup, now)) {
+    libraryDwell.suspend(now);
+    isLibraryNavigationActive = true;
+    return;
+  }
+  const stageRect = stage.getBoundingClientRect();
+  const targets = libraryTabs.map(tab => {
+    const r = tab.getBoundingClientRect();
+    return { id: tab.dataset.library, enabled: !tab.disabled,
+      left: r.left, top: r.top, right: r.right, bottom: r.bottom };
+  });
+  const pointers = lightingIsLow || document.hidden ? [] : hands.flatMap((hand, index) => {
+    // Use only fresh detections with a visible I label, never the retained skeleton.
+    if (getHandMetrics(hand)[1].state !== DIGIT_STATE.EXTENDED) return [];
+    const position = indexLabelPosition(hand, viewport);
+    if (!position) return [];
+    return [{ id: handednessName(results, index), x: stageRect.left + position.x, y: stageRect.top + position.y }];
+  });
+  const dwell = libraryDwell.update(now, pointers, targets);
+  isLibraryNavigationActive = !!dwell.target;
+  libraryTabs.forEach(tab => {
+    const hovering = dwell.target === tab.dataset.library;
+    tab.classList.toggle("is-dwelling", hovering);
+    const visualProgress = reducedMotion.matches ? dwell.progress : easeDwellProgress(dwell.progress);
+    tab.style.setProperty("--dwell-progress", hovering ? visualProgress : 0);
+  });
+  if (dwell.triggered) switchLibrary(dwell.triggered);
+}
+
+function requestedSign() {
+  if (activeLibrary !== "number" || librarySwitching) return null;
+  const learning = learningMode.getState();
+  const game = chainGame.getState();
+  if (!learning.active && game.complete) return null;
+  return getSign(`bsl-number-${learning.active ? learning.expected : game.expected}`);
+}
+
+function movementInstruction(sign) {
+  if (!sign.motion) return "Hold the sign steady";
+  const { detector, cycleCount } = sign.motion;
+  if (detector === "dual-pinch") return "Close thumb onto index and middle together";
+  if (detector === "index-pinch") return cycleCount === 2 ? "Pinch, open, then pinch again" : "Close index and thumb in one pinch";
+  return detector === "horizontal-wave" ? "Move side to side twice" : "Move up and down twice";
+}
+
+function updateTargetPractice(hands, handMetrics, orientations, now) {
+  const sign = requestedSign();
+  if (!sign || !isInitialized) { motionReadout.hidden = true; return; }
+  const learning = learningMode.getState().active;
+  const key = `${learning ? "learn" : "play"}:${sign.id}`;
+  if (key !== currentPracticeKey) {
+    resetPracticeTarget();
+    currentPracticeKey = key;
+    targetMotion = sign.motion ? createTargetMotion(sign) : null;
+    practice.reset({ id: sign.id, kind: sign.motion ? "motion" : "static", policy: sign.practice });
+  }
+  const previous = practice.getState();
+  const available = !lightingIsLow && !recordingSession && !document.hidden && !isLibraryNavigationActive
+    && now >= practiceFeedbackUntil && hands.length >= sign.hands;
+  const frameGap = lastPracticeFrameAt !== null && now - lastPracticeFrameAt > 300;
+  lastPracticeFrameAt = now;
+  if (!available || frameGap || previous.phase !== "performing") {
+    targetMotion?.reset();
+    staticAnchors = null;
+  }
+  const observations = hands.map((landmarks) => motionObservationFromLandmarks(landmarks, now));
+  // Sorting spatially avoids MediaPipe result-order swaps breaking a two-hand hold.
+  const ordered = [...observations].sort((a, b) => a.centerX - b.centerX);
+  let steady = true;
+  if (staticAnchors && ordered.length === staticAnchors.length) {
+    steady = ordered.every((o, i) => {
+      const a = staticAnchors[i];
+      const angle = Math.abs(((o.palmAngle - a.palmAngle + 540) % 360) - 180);
+      return Math.hypot(o.centerX - a.centerX, o.centerY - a.centerY) / Math.max(a.palmScale, .0001) < .2 && angle < 15;
+    });
+  }
+  if (!staticAnchors || !steady) staticAnchors = ordered;
+  const recognition = sign.recognitionType === "static"
+    ? recognizeHands([sign], handMetrics, learnedProfiles, orientations) : null;
+  const shapeMatches = hands.length === sign.hands && (sign.motion
+    ? motionStartMatches(sign, observations[0], handMetrics[0]) : recognition?.match?.sign.id === sign.id);
+  let movement = { complete: false, progress: 0 };
+  if (available && !frameGap && previous.phase === "performing" && targetMotion) {
+    if (hands.length === sign.hands) movement = targetMotion.update(observations[0], handMetrics[0]);
+    else targetMotion.reset();
+  }
+  const result = practice.update({ now, available, startPose: shapeMatches && (sign.motion || steady),
+    staticMatch: shapeMatches && steady, motionComplete: movement.complete, motionProgress: movement.progress });
+  motionReadout.hidden = false;
+  motionLabelCopy.textContent = `Target: ${sign.label}`;
+  motionPhaseCopy.textContent = result.phase === "paused" ? "Paused. Restore clear hand tracking"
+    : result.phase === "preparing" ? (sign.motion ? (sign.motion.detector.includes("pinch") ? "Form the starting shape with pinch fingers apart" : "Raise the required fingers before waving") : "Form the sign, then hold steady")
+      : movementInstruction(sign);
+  motionDistanceCopy.textContent = result.phase === "preparing" ? "Take your time. Timer starts when ready"
+    : `${(result.remainingMs / 1000).toFixed(1)} seconds remaining`;
+  motionProgressBar.style.width = `${Math.round(result.progress * 100)}%`;
+  recognitionModeCopy.textContent = `Target only: ${sign.shortLabel}`;
+  document.querySelectorAll("#gesture-list li[data-sign-id]").forEach((item) => {
+    const target = item.dataset.signId === sign.id;
+    item.classList.toggle("is-target", target);
+    item.classList.toggle("is-active", target && result.phase === "performing");
+    item.classList.toggle("is-timed", target && ["performing", "paused"].includes(result.phase));
+    item.classList.toggle("is-timer-bonus", target && !!sign.motion);
+    if (target) item.style.setProperty("--timer-progress", result.remainingMs / result.durationMs);
+  });
+  if (learning) setLearningPromptProximity(result.phase === "performing");
+  if (!diagnosticsPanel.hidden) {
+    if (recognition) renderRecognitionDiagnostic(recognition, orientations[0]);
+    else {
+      recognitionDiagnostic.textContent = `${sign.label}: ${motionPhaseCopy.textContent}. Movement ${(result.progress * 100).toFixed(0)}%`;
+    }
+  }
+  if (result.phase === "success") {
+    practiceFeedbackUntil = now + 1100;
+    showGestureResponse(sign.id, true);
+  } else if (result.phase === "timeout") {
+    practiceFeedbackUntil = now + 1100;
+    if (learning) {
+      resetPracticeTarget();
+      if (learning) showLearningPrompt(Number(sign.shortLabel));
+      setStatus("Take your time. Try this movement again", "is-live");
+    } else {
+      const failure = chainGame.timeout();
+      resetPracticeTarget();
+      renderChainState(failure.state);
+      showChainFailure(failure);
+    }
+  }
 }
 
 function renderDiagnostics(metrics) {
@@ -414,6 +875,11 @@ function updateDiagnostics(landmarks, now) {
 }
 
 function startRecording(kind, guided = false) {
+  if (!isInitialized || lightingIsLow) {
+    recordingStatus.textContent = lightingIsLow ? "Lighting too low" : "Complete camera calibration before recording.";
+    guidedCaptureButton.disabled = false;
+    return;
+  }
   if (!stream?.active) {
     recordingStatus.textContent = "Start the camera before recording a pose.";
     return;
@@ -432,7 +898,6 @@ function startRecording(kind, guided = false) {
   recordingStatus.classList.add("is-recording");
   recordingStatus.textContent = `Recording ${sign.label} ${kind === "positive" ? "correct" : "incorrect"}: 2.0s`;
   recordingProgressBar.style.width = "0%";
-  gestureHistory = [];
   document.querySelectorAll("#gesture-list li[data-gesture]").forEach((item) => item.classList.remove("is-active"));
   document.querySelectorAll("[data-record]").forEach((button) => { button.disabled = true; });
   captureFalseMatchButton.disabled = true;
@@ -458,6 +923,10 @@ function renderGuidedStep() {
 }
 
 function startGuidedTraining() {
+  if (!isInitialized || lightingIsLow) {
+    recordingStatus.textContent = lightingIsLow ? "Lighting too low" : "Complete camera calibration before training.";
+    return;
+  }
   if (!stream?.active) {
     recordingStatus.textContent = "Start the camera before beginning guided training.";
     return;
@@ -545,32 +1014,46 @@ function animateGestureRow(signId) {
   row.classList.add("is-hit");
 }
 
-function focusedStaticSignBank() {
-  return focusedStaticNumbers(SIGN_BANK, chainGame.getState().progress);
-}
-
 function renderChainState(gameState) {
+  const progress = activeLibrary === "number" ? gameState.progress : selectedLibraryGame().getState().progress;
+  chainScore.render(progress, libraryTitle.textContent);
+  if (activeLibrary !== "number") {
+    recognitionModeCopy.textContent = activeLibrary === "word" ? "Word placeholders" : "Letter rules pending";
+    return;
+  }
   const { minimum: focusMinimum, maximum: focusMaximum } = numberFocusRange(gameState.progress);
-  chainCountCopy.textContent = String(gameState.progress).padStart(2, "0");
-  chainMeter.classList.toggle("is-chaining", gameState.progress > 1);
+  recognitionModeCopy.textContent = gameState.complete ? "Sequence complete" : `Target only: ${gameState.expected}`;
   document.querySelectorAll("#gesture-list li[data-gesture]").forEach((item) => {
     const number = Number(item.dataset.gesture);
     item.classList.toggle("is-complete", gameState.recognizedNumbers.includes(number));
-    item.classList.toggle("is-deprioritized", number <= 10 && (number < focusMinimum || number > focusMaximum));
+    item.classList.toggle("is-target", !gameState.complete && number === gameState.expected);
+    item.classList.toggle("is-deprioritized", number < focusMinimum || number > focusMaximum);
   });
 }
 
 function resetGameProgress() {
+  clearTimeout(learningFinishTimer);
+  clearCountdownDisplay();
+  clearTimeout(learningPromptTimer);
+  learningMode.reset();
+  learningModeBanner.hidden = true;
+  learningActivationHistory = [];
+  learningActivationArmed = true;
+  recentLearningFrames = [];
   clearTimeout(responseTimer);
   clearTimeout(rewardTimer);
   clearTimeout(failureTimer);
   clearTimeout(delayedFailureTimer);
-  gestureHistory = [];
-  lastTriggeredGesture = null;
-  lastTriggeredAt = 0;
-  renderChainState(chainGame.reset());
-  setRecognitionMode("static");
+  selectedLibraryGame().reset();
+  renderChainState(chainGame.getState());
+  resetPracticeTarget();
+  motionReadout.hidden = true;
+  motionLabelCopy.textContent = "Motion tracking";
+  motionPhaseCopy.textContent = "Hold a number pose or begin a pinch";
+  motionDistanceCopy.textContent = "Waiting for a complete movement";
+  motionProgressBar.style.width = "0%";
   gestureResponse.classList.remove("is-pinging");
+  gestureResponse.classList.remove("is-learning-prompt", "is-learning-close");
   gestureResponse.setAttribute("aria-hidden", "true");
   chainReward.classList.remove("is-showing");
   chainReward.setAttribute("aria-hidden", "true");
@@ -583,9 +1066,7 @@ function resetGameProgress() {
 
 function showChainReward(numbers, progress) {
   clearTimeout(rewardTimer);
-  gestureHistory = [];
-  lastTriggeredGesture = null;
-  chainRewardCopy.textContent = progress === 5 ? "Numbers 1 to 5 complete" : "Numbers 6 to 10 complete";
+  chainRewardCopy.textContent = `Numbers ${progress - 4} to ${progress} complete`;
   document.querySelectorAll("#gesture-list li[data-gesture]").forEach((item) => {
     item.classList.toggle("is-milestone-flash", numbers.includes(Number(item.dataset.gesture)));
   });
@@ -619,6 +1100,7 @@ function playFailureTone() {
 }
 
 function showChainFailure(result) {
+  clearCountdownDisplay();
   clearTimeout(failureTimer);
   clearTimeout(rewardTimer);
   clearTimeout(responseTimer);
@@ -629,9 +1111,9 @@ function showChainFailure(result) {
   });
   gestureResponse.classList.remove("is-pinging");
   gestureResponse.setAttribute("aria-hidden", "true");
-  chainFailureCopy.textContent = result.state.progress === 5
-    ? "Second chain reset to checkpoint 5"
-    : "First chain reset. Start again at number 1";
+  chainFailureCopy.textContent = result.reason === "timeout"
+    ? (result.state.progress ? `Time up. Checkpoint ${result.state.progress} secured` : "Time up. Start again at number 1")
+    : (result.state.progress ? `Chain reset to checkpoint ${result.state.progress}` : "First chain reset. Start again at number 1");
   chainFailure.setAttribute("aria-hidden", "false");
   chainFailure.classList.remove("is-showing");
   void chainFailure.offsetWidth;
@@ -653,10 +1135,17 @@ function showChainFailure(result) {
 function showGestureResponse(signId, award = false) {
   const sign = getSign(signId);
   if (!sign) return;
-  const gameResult = award && sign.category === "number"
+  // Help clicks are visual only. Even an accidental caller cannot award a non-target.
+  if (award && sign.id !== requestedSign()?.id) return;
+  const learningState = learningMode.getState();
+  const learningResult = award && learningState.active && sign.category === "number"
+    ? learningMode.submit(Number(sign.shortLabel))
+    : null;
+  const gameResult = award && !learningState.active && sign.category === "number"
     ? chainGame.submit(Number(sign.shortLabel))
     : null;
   if (gameResult) {
+    clearCountdownDisplay();
     renderChainState(gameResult.state);
   }
   clearTimeout(delayedFailureTimer);
@@ -665,7 +1154,7 @@ function showGestureResponse(signId, award = false) {
   responseImage.alt = `BSL ${sign.label}`;
   responseImage.classList.toggle("is-inverted", sign.id === "bsl-number-6");
   gestureResponse.setAttribute("aria-hidden", "false");
-  gestureResponse.classList.remove("is-pinging");
+  gestureResponse.classList.remove("is-pinging", "is-learning-prompt", "is-learning-close");
   void gestureResponse.offsetWidth;
   gestureResponse.classList.add("is-pinging");
   animateGestureRow(signId);
@@ -673,45 +1162,26 @@ function showGestureResponse(signId, award = false) {
   if (gameResult?.type === "accepted" && gameResult.milestone) {
     showChainReward(gameResult.milestone, gameResult.state.progress);
   }
+  if (gameResult?.type === "accepted") prepareNextTarget(gameResult.state);
+  if (learningResult?.accepted) {
+    void saveLearningEvidence(sign);
+    learningModeCopy.textContent = learningResult.finished
+      ? "Five signs learned"
+      : `${learningResult.state.completed.length} of 5 · next number ${learningResult.state.expected}`;
+    if (learningResult.finished) {
+      learningFinishTimer = setTimeout(() => finishLearningMode(learningResult.state), 1000);
+    } else {
+      showLearningPrompt(learningResult.state.expected, 1000);
+    }
+  }
   responseTimer = setTimeout(() => {
     gestureResponse.classList.remove("is-pinging");
-    gestureResponse.setAttribute("aria-hidden", "true");
+    if (!gestureResponse.classList.contains("is-learning-prompt")) {
+      gestureResponse.setAttribute("aria-hidden", "true");
+    }
   }, 1000);
   if (gameResult?.type === "failed") {
     delayedFailureTimer = setTimeout(() => showChainFailure(gameResult), 1000);
-  }
-}
-
-function updateGestureRecognition(rawSignId, now) {
-  gestureHistory.push(rawSignId);
-  if (gestureHistory.length > 12) gestureHistory.shift();
-
-  const counts = new Map();
-  gestureHistory.forEach((value) => counts.set(value, (counts.get(value) || 0) + 1));
-  const consensus = [...counts.entries()].sort((a, b) => b[1] - a[1])[0];
-  const signId = gestureHistory.length === 12 && consensus?.[1] >= 10 ? consensus[0] : undefined;
-
-  document.querySelectorAll("#gesture-list li[data-gesture]").forEach((item) => {
-    item.classList.toggle("is-active", item.dataset.signId === signId);
-  });
-
-  if (signId === undefined) return;
-  if (signId === null) {
-    lastTriggeredGesture = null;
-    return;
-  }
-
-  if (!isInitialized) {
-    if (signId === "bsl-number-1") completeInitialization(now);
-    return;
-  }
-
-  const cooledDown = now - lastTriggeredAt > 900;
-  const changed = signId !== lastTriggeredGesture;
-  if (cooledDown && changed) {
-    showGestureResponse(signId, true);
-    lastTriggeredGesture = signId;
-    lastTriggeredAt = now;
   }
 }
 
@@ -732,6 +1202,24 @@ async function loadTracker() {
       minHandPresenceConfidence: 0.55,
       minTrackingConfidence: 0.55
     });
+
+    try {
+      faceLandmarker = await FaceLandmarker.createFromOptions(vision, {
+        baseOptions: {
+          modelAssetPath: "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
+          delegate: "GPU"
+        },
+        runningMode: "VIDEO",
+        numFaces: 1,
+        minFaceDetectionConfidence: 0.5,
+        minFacePresenceConfidence: 0.5,
+        minTrackingConfidence: 0.5,
+        outputFaceBlendshapes: false,
+        outputFacialTransformationMatrixes: false
+      });
+    } catch (error) {
+      console.warn("Head tracker unavailable; camera calibration cannot complete", error);
+    }
 
     startButton.disabled = false;
     setStatus("Tracker ready. Camera off");
@@ -758,7 +1246,9 @@ async function startCamera() {
     await video.play();
     instruction.classList.add("is-running");
     initializationGate.hidden = false;
-    setStatus("Initialising. Sign Number 1 to begin", "is-live");
+    stage.classList.add("is-calibrating");
+    framingHold.reset();
+    setStatus("Calibrating. Frame your head and both hands", "is-live");
     requestAnimationFrame(track);
   } catch (error) {
     console.error(error);
@@ -840,7 +1330,7 @@ function drawHand(landmarks, bounds) {
     if (fingerStates[index] !== DIGIT_STATE.EXTENDED) return;
     const p = point(tip);
     context.save();
-    context.translate(p.x, p.y - 16);
+    context.translate(p.x, p.y - INDEX_LABEL_OFFSET);
     context.scale(-1, 1);
     context.fillStyle = "rgba(255, 255, 255, 0.85)";
     context.font = "600 11px Arial, sans-serif";
@@ -849,6 +1339,19 @@ function drawHand(landmarks, bounds) {
     context.fillText(label, 0, 0);
     context.restore();
   });
+
+  const wrist = point(0);
+  const palmAngle = mirrorSignedHandAngle(getPalmFrame(landmarks).signedAngle);
+  const displayedAngle = Math.abs(palmAngle) < 0.5 ? 0 : Math.round(palmAngle);
+  context.save();
+  context.translate(wrist.x, wrist.y + 18);
+  context.scale(-1, 1);
+  context.fillStyle = "rgba(255, 255, 255, 0.85)";
+  context.font = "600 11px Arial, sans-serif";
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+  context.fillText(`${displayedAngle}°`, 0, 0);
+  context.restore();
 }
 
 function updateFps(now) {
@@ -874,29 +1377,53 @@ function track(now) {
   if (video.currentTime !== lastVideoTime) {
     lastVideoTime = video.currentTime;
     const results = handLandmarker.detectForVideo(video, now);
-    const hands = results.landmarks || [];
-    if (hands.length) lastDetectedHands = hands;
-    if (!recordingSession) {
-      const handMetrics = hands.map((landmarks) => getHandMetrics(landmarks));
-      const handOrientations = hands.map((landmarks) => getHandOrientation(landmarks));
-      if (recognitionMode === "motion") {
-        updateMotionRecognition(hands, now);
-        if (!diagnosticsPanel.hidden) {
-          recognitionDiagnostic.className = "recognition-diagnostic is-uncertain";
-          recognitionDiagnostic.innerHTML = `<strong>Motion mode · Number 11</strong><span>${motionPhaseCopy.textContent}</span><span>${motionDistanceCopy.textContent}. Open target 0.45 or more. Closed target 0.32 or less.</span>`;
-        }
-      } else {
-        const recognition = handMetrics.length
-          ? recognizeHands(focusedStaticSignBank(), handMetrics, learnedProfiles, handOrientations)
-          : null;
-        updateGestureRecognition(recognition?.match?.sign.id || null, now);
-        if (!diagnosticsPanel.hidden) renderRecognitionDiagnostic(recognition, handOrientations[0]);
+    if (faceLandmarker && now - lastFaceCheckAt >= 100) {
+      lastFaceCheckAt = now;
+      try {
+        faceLandmarks = faceLandmarker.detectForVideo(video, now).faceLandmarks?.[0] || [];
+      } catch (error) {
+        console.error("Head tracking failed", error);
+        faceLandmarks = [];
+        faceLandmarker = undefined;
       }
     }
-    updateDiagnostics(hands[0] || null, now);
-    updateHandPositionIndicators(results, now);
+    const keptHandIndices = (results.landmarks || [])
+      .map((landmarks, index) => ({ landmarks, index }))
+      .filter(({ landmarks }) => !faceLandmarks.length || !handOverlapsFace(landmarks, faceLandmarks));
+    const hands = keptHandIndices.map(({ landmarks }) => landmarks);
+    updateLighting(hands, now);
+    const wasInitialized = isInitialized;
+    updateCameraFraming(hands, { width: size.width, height: size.height, videoBounds: bounds }, now);
+    const handedness = results.handedness || results.handednesses || [];
+    const filteredResults = {
+      ...results,
+      landmarks: hands,
+      handedness: keptHandIndices.map(({ index }) => handedness[index]).filter(Boolean),
+      handednesses: keptHandIndices.map(({ index }) => handedness[index]).filter(Boolean)
+    };
+    updateLibraryNavigation(hands, filteredResults, { width: size.width, height: size.height, videoBounds: bounds }, now);
+    if (!isInitialized || lightingIsLow) lastDetectedHands = lightingIsLow ? [] : hands;
+    else if (hands.length) lastDetectedHands = hands;
+    else if ((results.landmarks || []).length) lastDetectedHands = [];
+    if (wasInitialized) {
+      const handMetrics = hands.map((landmarks) => getHandMetrics(landmarks));
+      const handOrientations = hands.map((landmarks) => getHandOrientation(landmarks));
+      if (!lightingIsLow && !recordingSession && now >= practiceFeedbackUntil) updateLearningActivation(handMetrics);
+      if (!lightingIsLow && !recordingSession && learningMode.getState().active) {
+        if (hands.length === 1) {
+          recentLearningFrames.push({ metrics: handMetrics[0], landmarks: hands[0] });
+          if (recentLearningFrames.length > 30) recentLearningFrames.shift();
+        } else if (hands.length > 1) {
+          recentLearningFrames = [];
+        }
+      }
+      updateTargetPractice(hands, handMetrics, handOrientations, now);
+    }
+    if (!lightingIsLow && isInitialized) updateDiagnostics(hands[0] || null, now);
+    updateHandPositionIndicators(filteredResults, now);
+    updateDistanceAlert(hands, now, { width: size.width, height: size.height, videoBounds: bounds });
     handCountCopy.textContent = `${hands.length} ${hands.length === 1 ? "HAND" : "HANDS"}`;
-    if (isInitialized) {
+    if (isInitialized && !lightingIsLow) {
       setStatus(hands.length ? `Tracking ${hands.length} hand${hands.length > 1 ? "s" : ""}` : "Camera live. Looking for hands", "is-live");
     }
   }
@@ -908,9 +1435,24 @@ function track(now) {
 }
 
 startButton.addEventListener("click", startCamera);
-chainResetButton.addEventListener("click", resetGameProgress);
-recognitionModeToggle.addEventListener("click", () => {
-  setRecognitionMode(recognitionMode === "static" ? "motion" : "static");
+libraryTabs.forEach(tab => {
+  let hoverTimer;
+  tab.addEventListener("pointerenter", () => {
+    clearTimeout(hoverTimer);
+    hoverTimer = setTimeout(() => {
+      if (!pointGestureReset.isBlocked(libraryButtonGroup)) tab.classList.add("is-pointer-hover");
+    }, MIN_BUTTON_INTENT_MS);
+  });
+  tab.addEventListener("pointerleave", () => {
+    clearTimeout(hoverTimer);
+    hoverTimer = setTimeout(() => tab.classList.remove("is-pointer-hover"), MIN_BUTTON_INTENT_MS);
+  });
+  tab.addEventListener("click", () => {
+    if (pointGestureReset.isBlocked(libraryButtonGroup)) return;
+    clearTimeout(manualSelectionTimer);
+    // Click/keyboard selection also has a minimum confirmation window.
+    manualSelectionTimer = setTimeout(() => switchLibrary(tab.dataset.library), MIN_BUTTON_INTENT_MS);
+  });
 });
 diagnosticsToggle.addEventListener("click", () => {
   diagnosticsPanel.hidden = !diagnosticsPanel.hidden;
@@ -945,9 +1487,6 @@ clearCalibrationButton.addEventListener("click", async () => {
 gestureList.addEventListener("click", (event) => {
   const item = event.target.closest("li[data-gesture]");
   if (item) {
-    const sign = getSign(item.dataset.signId);
-    if (sign?.motion?.status === "active") setRecognitionMode("motion");
-    else if (sign?.recognitionType === "static") setRecognitionMode("static");
     showGestureResponse(item.dataset.signId);
   }
 });
@@ -955,9 +1494,6 @@ gestureList.addEventListener("keydown", (event) => {
   const item = event.target.closest("li[data-gesture]");
   if (item && (event.key === "Enter" || event.key === " ")) {
     event.preventDefault();
-    const sign = getSign(item.dataset.signId);
-    if (sign?.motion?.status === "active") setRecognitionMode("motion");
-    else if (sign?.recognitionType === "static") setRecognitionMode("static");
     showGestureResponse(item.dataset.signId);
   }
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classifyHandFacing, getHandPosition, mirrorCardinalAngle, snapHandAngle } from "../src/core/hand-position.ts";
+import { classifyHandFacing, getHandPosition, mirrorCardinalAngle, mirrorSignedHandAngle, snapHandAngle } from "../src/core/hand-position.ts";
 import type { Landmark } from "../src/core/types.ts";
 
 function hand(middleBase: Landmark, indexBase: Landmark = { x: 0.62, y: 0.35 }, pinkyBase: Landmark = { x: 0.38, y: 0.35 }): Landmark[] {
@@ -41,6 +41,13 @@ describe("cardinal hand direction", () => {
     expect(mirrorCardinalAngle(90)).toBe(-90);
     expect(mirrorCardinalAngle(0)).toBe(0);
     expect(mirrorCardinalAngle(180)).toBe(180);
+  });
+
+  it("shows an upright palm as zero and mirrors continuous tilt", () => {
+    expect(mirrorSignedHandAngle(0)).toBe(0);
+    expect(mirrorSignedHandAngle(37.4)).toBeCloseTo(-37.4);
+    expect(mirrorSignedHandAngle(-82)).toBe(82);
+    expect(mirrorSignedHandAngle(-180)).toBe(180);
   });
 });
 
